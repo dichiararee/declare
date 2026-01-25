@@ -1,7 +1,7 @@
 
 # 🤖 zexin bot .✦ ݁˖
 
-⤷ ゛Bot whatsapp basato su [realvare/based](https://npmjs.com/projects/@realvare/based). Base interamente fatta da zero, rapido e facilmente configurabile! ⋆˚꩜｡
+⤷ ゛Bot whatsapp basato su [realvare/based](https://npmjs.com/projects/@realvare/based). Base interamente fatta da zero, rapido e facilmente configurabile! Funziona sia su WhatsApp normale, WhatsApp Business (mod incluse) ⋆˚꩜｡
 
 
 ## 📥 Come installare ⋆˙⟡
