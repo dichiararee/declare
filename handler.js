@@ -1,121 +1,105 @@
-import { smsg } from './lib/simple.js'
-import { writeFileSync, readFileSync, existsSync } from 'fs'
-import chalk from 'chalk'
-import { toJid } from '@realvare/based'
+import { writeFileSync } from 'fs';
+import print from './lib/print.js';
 
-const dbPath = './database.json'
-if (!existsSync(dbPath)) {
-    writeFileSync(dbPath, JSON.stringify({ users: {}, groups: {}, chats: {}, settings: {} }, null, 2))
-}
-
-global.db = JSON.parse(readFileSync(dbPath))
-
-export async function handler(chatUpdate) {
-    this.msgqueues = this.msgqueues || []
-    if (!chatUpdate) return
-    let m = chatUpdate.messages[chatUpdate.messages.length - 1]
-    if (!m) return
+export default async function handler(conn, m) {
     try {
-        m = smsg(this, m) || m
-        if (!m) return
-        
-        const jid = toJid(m.chat)
-        const isGroup = jid.endsWith('@g.us')
+        if (!m.message) return;
 
-        global.db.users = global.db.users || {}
-        global.db.groups = global.db.groups || {}
+        // --- FIX DECODIFICA INTERAZIONI & LOG ---
+        if (m.mtype === 'messageContextInfo') {
+            m.message = m.message.listResponseMessage || m.message.buttonsResponseMessage || m.message;
+            m.mtype = Object.keys(m.message)[0];
+        }
 
-        if (!global.db.users[m.sender]) global.db.users[m.sender] = { messages: 0 }
-        global.db.users[m.sender].messages++
-        
+        const jid = conn.decodeJid(m.key.remoteJid);
+        const isGroup = jid.endsWith('@g.us');
+        const sender = conn.decodeJid(m.key.participant || jid);
+
+        m.chat = jid;
+        m.sender = sender;
+        m.mtype = Object.keys(m.message)[0];
+        m.msg = m.message[m.mtype];
+
+        // Estrazione testo da bottoni, liste e quick replies
+        let text = "";
+        if (m.mtype === 'conversation') text = m.message.conversation;
+        else if (m.mtype === 'extendedTextMessage') text = m.message.extendedTextMessage.text;
+        else if (m.mtype === 'buttonsResponseMessage') text = m.message.buttonsResponseMessage.selectedButtonId;
+        else if (m.mtype === 'listResponseMessage') text = m.message.listResponseMessage.singleSelectReply.selectedRowId;
+        else if (m.mtype === 'interactiveResponseMessage') {
+            const paramsJson = m.message.interactiveResponseMessage.nativeFlowResponseMessage?.paramsJson;
+            if (paramsJson) {
+                const params = JSON.parse(paramsJson);
+                text = params.id || params.text || "";
+            }
+        } else if (m.msg?.selectedId) text = m.msg.selectedId;
+        else if (m.msg?.text) text = m.msg.text;
+
+        m.text = text || "";
+
+        // Log di debug in console per vedere cosa legge il bot
+        if (m.text) {
+            console.log(`\x1b[32m[READ]\x1b[0m Contenuto letto: ${m.text}`);
+        }
+
+        global.db.users = global.db.users || {};
+        global.db.groups = global.db.groups || {};
+
+        if (!global.db.users[sender]) global.db.users[sender] = { messages: 0 };
+        global.db.users[sender].messages++;
+
         if (isGroup) {
-            if (!global.db.groups[jid]) global.db.groups[jid] = { messages: 0 }
-            global.db.groups[jid].messages++
+            if (!global.db.groups[jid]) {
+                global.db.groups[jid] = { messages: 0, rileva: false, welcome: true, antilink: true };
+            }
+            global.db.groups[jid].messages++;
         }
-        
-        writeFileSync(dbPath, JSON.stringify(global.db, null, 2))
+        writeFileSync('./database.json', JSON.stringify(global.db, null, 2));
 
-        if (m.isBaileys) return
+        await print(m, conn);
 
-        const mText = m.text || ''
-        const _prefix = global.prefix || /^[./!#]/
-        let usedPrefix = ''
+        if (m.key.fromMe) return;
 
-        if (_prefix instanceof RegExp) {
-            let match = mText.match(_prefix)
-            if (match) usedPrefix = match[0]
-        } else if (Array.isArray(_prefix)) {
-            usedPrefix = _prefix.find(p => typeof p === 'string' && mText.startsWith(p)) || ''
-        } else if (typeof _prefix === 'string') {
-            if (mText.startsWith(_prefix)) usedPrefix = _prefix
-        }
+        const prefix = global.prefix instanceof RegExp ? (global.prefix.test(m.text) ? m.text.match(global.prefix)[0] : '.') : (global.prefix || '.');
+        if (!m.text.startsWith(prefix)) return;
 
-        const noPrefix = mText.replace(usedPrefix, '').trim()
-        const args = noPrefix.split(/ +/)
-        const command = args.shift().toLowerCase()
-        
-        const groupMetadata = (isGroup ? await (this.groupMetadata(jid).catch(() => ({}))) : {}) || {}
-        const participants = (isGroup ? groupMetadata.participants : []) || []
-        const user = (isGroup ? participants.find(u => this.decodeJid(u.id) === m.sender) : {}) || {} 
-        const bot = (isGroup ? participants.find(u => this.decodeJid(u.id) === (this.user?.id ? toJid(this.user.id) : '')) : {}) || {}
-        
-        const isRowner = global.owner.map(([number]) => toJid(number.replace(/\D/g, '') + '@s.whatsapp.net')).includes(m.sender)
-        const isOwner = isRowner || global.owner.map(([number]) => toJid(number.replace(/\D/g, '') + '@s.whatsapp.net')).includes(m.sender)
-        const isAdmin = isOwner || user?.admin || false
-        const isBotAdmin = bot?.admin || false
+        const args = m.text.slice(prefix.length).trim().split(/ +/);
+        const command = args.shift().toLowerCase();
+        const fullText = args.join(' '); 
 
-        if (!usedPrefix && isGroup) return
+        const isOwner = global.owner.some(o => o[0] === sender.split('@')[0]);
+        const groupMetadata = isGroup ? await conn.groupMetadata(jid).catch(() => ({})) : {};
+        const participants = isGroup ? (groupMetadata.participants || []) : [];
+        const user = isGroup ? participants.find(u => conn.decodeJid(u.id) === sender) : {};
+        const bot = isGroup ? participants.find(u => conn.decodeJid(u.id) === conn.decodeJid(conn.user.id)) : {};
+        const isAdmin = user?.admin === 'admin' || user?.admin === 'superadmin' || isOwner;
+        const isBotAdmin = bot?.admin === 'admin' || bot?.admin === 'superadmin';
 
         for (let name in global.plugins) {
-            let plugin = global.plugins[name]
-            if (!plugin || plugin.disabled) continue
+            let plugin = global.plugins[name];
+            if (!plugin || plugin.disabled) continue;
 
-            let isAccept = Array.isArray(plugin.command) ? 
+            const isAccept = Array.isArray(plugin.command) ? 
                 plugin.command.includes(command) : 
-                (plugin.command instanceof RegExp ? plugin.command.test(command) : plugin.command === command)
+                (plugin.command instanceof RegExp ? plugin.command.test(command) : plugin.command === command);
 
             if (isAccept) {
-                m.plugin = name
-                if (plugin.rowner && !isRowner) {
-                    m.reply(global.dfail('rowner', m, this))
-                    continue
-                }
-                if (plugin.owner && !isOwner) {
-                    m.reply(global.dfail('owner', m, this))
-                    continue
-                }
-                if (plugin.admin && !isAdmin) {
-                    m.reply(global.dfail('admin', m, this))
-                    continue
-                }
-                if (plugin.group && !isGroup) {
-                    m.reply(global.dfail('group', m, this))
-                    continue
-                }
-                if (plugin.botAdmin && !isBotAdmin) {
-                    m.reply(global.dfail('botAdmin', m, this))
-                    continue
-                }
+                if (plugin.owner && !isOwner) { global.dfail('owner', m, conn); continue; }
+                if (plugin.group && !isGroup) { global.dfail('group', m, conn); continue; }
+                if (plugin.admin && !isAdmin) { global.dfail('admin', m, conn); continue; }
+                if (plugin.botAdmin && !isBotAdmin) { global.dfail('botAdmin', m, conn); continue; }
 
                 try {
-                    await plugin.call(this, m, {
-                        conn: this,
-                        args,
-                        usedPrefix,
-                        command,
-                        isOwner,
-                        isAdmin,
-                        isBotAdmin,
-                        participants,
-                        groupMetadata,
-                    })
+                    await plugin.call(conn, m, {
+                        conn, args, text: fullText, usedPrefix: prefix, command, isOwner, isAdmin, isBotAdmin, participants, groupMetadata
+                    });
                 } catch (e) {
-                    console.error(e)
+                    console.error(e);
                 }
-                break
+                break;
             }
         }
     } catch (e) {
-        console.error(e)
+        console.error(e);
     }
 }

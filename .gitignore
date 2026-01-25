@@ -141,3 +141,4 @@ vite.config.ts.timestamp-*
 # files del bot
 zexin-session/
 database.json
+funzioni/database.json

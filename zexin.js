@@ -1,69 +1,104 @@
-import './config.js'
-import { join } from 'path'
-import { pathToFileURL } from 'url'
-import fs, { readdirSync, watchFile, unwatchFile } from 'fs'
-import pino from 'pino'
-import chalk from 'chalk'
-import { makeWASocket, useMultiFileAuthState, makeCacheableSignalKeyStore, Browsers, fetchLatestBaileysVersion, normalizeJid, toJid } from '@realvare/based'
-import { handler } from './handler.js'
-import printLog from './lib/print.js'
+import pkg from "@realvare/based";
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = pkg;
+import pino from "pino";
+import fs from "fs";
+import path from "path";
+import chalk from "chalk";
+import { pathToFileURL } from 'url';
+import handler from "./handler.js";
+import './config.js';
 
-const { state, saveCreds } = await useMultiFileAuthState(global.authFile || 'zexin-session')
-const { version } = await fetchLatestBaileysVersion()
+async function startBot() {
+    const { state, saveCreds } = await useMultiFileAuthState(`./${global.authFile}`);
+    const { version } = await fetchLatestBaileysVersion();
 
-async function startZexin() {
+    console.log(chalk.cyan.bold('\n₊˚⊹♡ ─── ZEXIN BOT STARTING ─── ♡⊹˚\n'));
+
     const conn = makeWASocket({
         version,
         logger: pino({ level: 'silent' }),
         printQRInTerminal: true,
-        auth: {
-            creds: state.creds,
-            keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'silent' })),
-        },
-        browser: Browsers.macOS('Desktop'),
-        shouldIgnoreOldMessages: true,
-        syncFullHistory: false 
-    })
+        auth: state,
+        browser: ['Zexin Bot', 'Safari', '3.0']
+    });
 
-    global.conn = conn
+    global.db = { users: {}, groups: {}, chats: {}, settings: {} };
+    if (fs.existsSync('./database.json')) {
+        global.db = JSON.parse(fs.readFileSync('./database.json'));
+    }
+
+    global.plugins = {};
+    const pluginsFolder = path.join(process.cwd(), 'plugins');
+    const pluginFiles = fs.readdirSync(pluginsFolder).filter(file => file.endsWith('.js'));
+    
+    for (let file of pluginFiles) {
+        try {
+            const pluginPath = pathToFileURL(path.join(pluginsFolder, file)).href;
+            const plugin = await import(pluginPath);
+            global.plugins[file] = plugin.default || plugin;
+            console.log(chalk.green(`[ LOAD ] `) + chalk.white(`Plugin caricato: ${file}`));
+        } catch (e) {
+            console.error(chalk.red(`[ ERROR ] `) + chalk.white(`Errore caricamento ${file}:`), e);
+        }
+    }
+
+    conn.ev.on('creds.update', saveCreds);
 
     conn.decodeJid = (jid) => {
-        if (!jid) return jid
-        return normalizeJid(jid) 
-    }
+        if (!jid) return jid;
+        if (/:\d+@/gi.test(jid)) {
+            let decode = jid.split(':');
+            return decode[0] + '@' + decode[1].split('@')[1];
+        }
+        return jid;
+    };
 
-    conn.ev.on('connection.update', (u) => {
-        if (u.connection === 'open') console.log(chalk.magentaBright(`\n  ────୨ৎ────\n  ➤  ZEXIN ONLINE \n  ────୨ৎ────\n`))
-        if (u.connection === 'close') startZexin()
-    })
+    conn.getName = async (jid) => {
+        let id = conn.decodeJid(jid);
+        if (id.endsWith('@g.us')) {
+            const metadata = await conn.groupMetadata(id).catch(() => ({ subject: id }));
+            return metadata.subject || id;
+        }
+        return global.db.users[id]?.name || id.split('@')[0];
+    };
 
-    conn.ev.on('creds.update', saveCreds)
+    conn.sendList = async (jid, title, text, footer, image, sections, quoted) => {
+        const msg = {
+            interactiveMessage: {
+                header: { title, hasVideoMessage: false },
+                body: { text },
+                footer: { text: footer },
+                nativeFlowMessage: {
+                    buttons: [{
+                        name: "single_select",
+                        buttonParamsJson: JSON.stringify({ title: "Seleziona", sections })
+                    }]
+                }
+            }
+        };
+        if (image) {
+            const media = await conn.prepareWAMessageMedia({ image: { url: image } }, { upload: conn.waUploadToServer });
+            msg.interactiveMessage.header.imageMessage = media.imageMessage;
+        }
+        return await conn.relayMessage(jid, { viewOnceMessage: { message: msg } }, { quoted });
+    };
 
     conn.ev.on('messages.upsert', async (chatUpdate) => {
-        if (chatUpdate.type !== 'notify') return 
-        const m = chatUpdate.messages[0]
-        if (!m || !m.message) return
-        await printLog(m, conn)
-        await handler.call(conn, chatUpdate)
-    })
+        if (!chatUpdate.messages || !chatUpdate.messages[0]) return;
+        const m = chatUpdate.messages[0];
+        await handler(conn, m);
+    });
+
+    conn.ev.on('connection.update', (update) => {
+        const { connection, lastDisconnect } = update;
+        if (connection === 'open') console.log(chalk.green.bold('\n[ SUCCESS ] ') + chalk.white('Bot connesso! 🌸\n'));
+        if (connection === 'close') {
+            const reason = lastDisconnect?.error?.output?.statusCode;
+            if (reason !== DisconnectReason.loggedOut) startBot();
+        }
+    });
+
+    return conn;
 }
 
-global.plugins = {}
-global.loadPlugins = async function () {
-    const files = readdirSync('./plugins').filter(f => f.endsWith('.js'))
-    for (let file of files) {
-        try {
-            const fpath = join('./plugins', file)
-            const furl = pathToFileURL(fpath).href
-            const module = await import(`${furl}?update=${Date.now()}`)
-            global.plugins[file] = module.default || module
-            watchFile(fpath, async () => {
-                unwatchFile(fpath)
-                const newModule = await import(`${furl}?update=${Date.now()}`)
-                global.plugins[file] = newModule.default || newModule
-            })
-        } catch (e) {}
-    }
-}
-
-global.loadPlugins().then(() => startZexin())
+startBot();
