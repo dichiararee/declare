@@ -1,8 +1,6 @@
 const handler = async (m, { conn, command, text }) => {
-    // 1. Estrazione ID (Tag o Reply)
     let who = m.quoted ? m.quoted.sender : m.mentionedJid && m.mentionedJid[0] ? m.mentionedJid[0] : false
 
-    // 2. Se non c'è tag/reply ma c'è testo (es. .warn 39333...)
     if (!who && text) {
         let jid = text.replace(/[^0-9]/g, '') + '@s.whatsapp.net'
         who = jid
@@ -10,19 +8,13 @@ const handler = async (m, { conn, command, text }) => {
 
     if (!who) return m.reply(`🏮 ╰┈➤ Tagga o menziona qualcuno`)
 
-    // 3. SUPER-FIX: Pulizia forzata del LID
-    // decodeJid pulisce i :1 o :47, toJid normalizza.
     who = conn.decodeJid(who)
 
-    // Se Baileys continua a passare il LID puro, forziamo il recupero del JID reale
-    // controllando se l'ID è nel formato LID (spesso inizia con numeri lunghi e strani)
     if (who.includes('lid') || (who.split('@')[0].length > 13)) {
-        // Cerchiamo nei contatti o nel database se esiste una mappatura
         let userInDb = Object.keys(global.db.data.users).find(key => key.includes(who.split('@')[0]))
         if (userInDb) who = userInDb
     }
 
-    // 4. Inizializzazione database (Percorso corretto: global.db.data.users)
     if (!global.db.data.users[who]) global.db.data.users[who] = { warns: {} }
     let user = global.db.data.users[who]
     
@@ -40,7 +32,6 @@ const handler = async (m, { conn, command, text }) => {
                 mentions: [who]
             }, { quoted: m })
             
-            // Tentativo di espulsione
             await conn.groupParticipantsUpdate(m.chat, [who], 'remove').catch(e => {
                 console.error("Errore Kick:", e)
             })

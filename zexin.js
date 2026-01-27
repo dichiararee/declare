@@ -114,18 +114,13 @@ async function startBot() {
         await handler(conn, m);
     });
 
-    // Fix: Aggiunto l'ascolto per le promozioni e retrocessioni
     conn.ev.on('group-participants.update', async (update) => {
         const { id } = update;
-        // Aggiorna la cache dei metadati per evitare conflitti LID/JID
         await conn.groupMetadata(id, true).catch(() => {}); 
-        // Invia i log al file permessi.js
         await groupUpdate(conn, update);
-        // Stampa i log in console
         await print(update, conn, true);
     });
 
-    // Fix: Rileva modifiche alle impostazioni del gruppo
     conn.ev.on('groups.update', async (updates) => {
         for (const update of updates) {
             await groupUpdate(conn, update);

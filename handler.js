@@ -66,15 +66,12 @@ export default async function handler(conn, m) {
 
         const isOwner = global.owner.some(o => o[0] === sender.split('@')[0]);
         
-        // Recupero metadati (forziamo la cache se necessario)
         const groupMetadata = isGroup ? await conn.groupMetadata(jid, true).catch(() => ({})) : {};
         const participants = isGroup ? (groupMetadata.participants || []) : [];
         
-        // 1. Normalizziamo gli ID fondamentali
-        const botJid = conn.decodeJid(conn.user.id); // Es: 584265584282@s.whatsapp.net
+        const botJid = conn.decodeJid(conn.user.id); 
         const senderJid = conn.decodeJid(sender);
 
-        // 2. Troviamo i partecipanti confrontando SIA 'id' CHE 'jid' (dove risiede il LID)
         const user = isGroup ? participants.find(u => 
             conn.decodeJid(u.id) === senderJid || 
             (u.jid && conn.decodeJid(u.jid) === senderJid)
@@ -85,12 +82,8 @@ export default async function handler(conn, m) {
             (u.jid && conn.decodeJid(u.jid) === botJid)
         ) : {};
 
-        // 3. Verifichiamo lo stato admin (coprendo admin, superadmin e lid-admin)
         const isAdmin = (user && user.admin !== null) || isOwner;
         const isBotAdmin = (bot && bot.admin !== null) || false;
-
-        // DEBUG per vedere se il match avviene
-        console.log(`[DEBUG] Corrispondenza Bot trovata: ${!!bot} | Stato Admin: ${isBotAdmin}`);
 
         for (let name in global.plugins) {
             let plugin = global.plugins[name];
