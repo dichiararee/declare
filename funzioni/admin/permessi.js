@@ -6,14 +6,12 @@ export async function groupUpdate(conn, anu) {
         
         if (!global.db || !global.db.data) return
         
-        // Controllo se la funzione rileva è attiva per questo gruppo
         const chat = global.db.data.groups?.[id] || global.db.data.chats?.[id]
         if (!chat || !chat.rileva) return
 
         let displayName = ""
         let testo = ""
 
-        // Gestiamo solo promozioni e retrocessioni
         if (action === 'promote' || action === 'demote') {
             const user = participants[0]
             displayName = action === 'promote' ? `🎋 PROMOZIONE` : `🎐 RETROCESSIONE`
@@ -21,11 +19,11 @@ export async function groupUpdate(conn, anu) {
                 ? `*@${user.split('@')[0]}* è ora un amministratore.`
                 : `*@${user.split('@')[0]}* non è più un amministratore.`
         } else {
-            return // Esci se l'azione non è promo/demote
+            return 
         }
 
         const fakeContact = {
-            key: { participant: '0@s.whatsapp.net', remoteJid: 'status@broadcast' },
+            key: { participant: '0@s.whatsapp.net'},
             message: {
                 contactMessage: {
                     displayName: displayName,

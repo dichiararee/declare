@@ -2,39 +2,30 @@ import { writeFileSync } from 'fs';
 import print from './lib/print.js';
 import { prima as antiPrivato } from './funzioni/owner/antiprivato.js'
 
-/**
- * Funzione per estrarre il testo da vari tipi di messaggio
- */
 function extractMessageText(message) {
     if (!message) return '';
     
     const mtype = Object.keys(message)[0];
     const msg = message[mtype];
     
-    // Gestione messaggi di testo standard
     if (message.conversation) return message.conversation;
     if (message.extendedTextMessage?.text) return message.extendedTextMessage.text;
     
-    // Gestione bottoni legacy
     if (message.buttonsResponseMessage?.selectedButtonId) {
         return message.buttonsResponseMessage.selectedButtonId;
     }
     
-    // Gestione list response
     if (message.listResponseMessage?.singleSelectReply?.selectedRowId) {
         return message.listResponseMessage.singleSelectReply.selectedRowId;
     }
     
-    // Gestione template button reply
     if (message.templateButtonReplyMessage?.selectedId) {
         return message.templateButtonReplyMessage.selectedId;
     }
     
-    // Gestione bottoni interattivi moderni (caroselli, native flow, ecc.)
     if (message.interactiveResponseMessage) {
         const interactive = message.interactiveResponseMessage;
         
-        // Native Flow Response (bottoni moderni di WhatsApp)
         if (interactive.nativeFlowResponseMessage?.paramsJson) {
             try {
                 const params = JSON.parse(interactive.nativeFlowResponseMessage.paramsJson);
@@ -44,11 +35,9 @@ function extractMessageText(message) {
             }
         }
         
-        // Body (testo del messaggio interattivo)
         if (interactive.body) return interactive.body;
     }
     
-    // Gestione messaggi con selectedId generico
     if (msg?.selectedId) return msg.selectedId;
     if (msg?.text) return msg.text;
     if (msg?.caption) return msg.caption;
@@ -56,9 +45,6 @@ function extractMessageText(message) {
     return '';
 }
 
-/**
- * Funzione per estrarre mentions/tag
- */
 function extractMentions(message) {
     if (!message) return [];
     
@@ -66,23 +52,17 @@ function extractMentions(message) {
     const mtype = Object.keys(message)[0];
     const msg = message[mtype];
     
-    // Prendi mentions dal contextInfo
     if (msg?.contextInfo?.mentionedJid) {
         mentions.push(...msg.contextInfo.mentionedJid);
     }
     
-    // Prendi mentions dall'extendedTextMessage
     if (message.extendedTextMessage?.contextInfo?.mentionedJid) {
         mentions.push(...message.extendedTextMessage.contextInfo.mentionedJid);
     }
     
-    // Rimuovi duplicati
     return [...new Set(mentions)];
 }
 
-/**
- * Funzione per estrarre il messaggio quotato (reply)
- */
 function extractQuotedMessage(conn, m) {
     const message = m.message;
     if (!message) return null;
@@ -103,10 +83,8 @@ function extractQuotedMessage(conn, m) {
         mtype: quotedType,
         msg: quotedMsg[quotedType],
         text: extractMessageText(quotedMsg),
-        // Informazioni aggiuntive utili
         contextInfo: contextInfo,
         download: async () => {
-            // Funzione helper per scaricare media dal messaggio quotato
             if (quotedMsg[quotedType]?.url) {
                 return await conn.downloadMediaMessage({
                     key: { 
@@ -132,10 +110,8 @@ export default async function handler(conn, m) {
         m.chat = jid;
         m.sender = sender;
         
-        // --- GESTIONE MTYPE MIGLIORATA ---
         let rawMessage = m.message;
         
-        // Gestione messageContextInfo (bottoni/liste legacy)
         if (rawMessage.messageContextInfo) {
             if (rawMessage.listResponseMessage) {
                 rawMessage = { listResponseMessage: rawMessage.listResponseMessage };
@@ -148,16 +124,12 @@ export default async function handler(conn, m) {
         m.mtype = Object.keys(rawMessage)[0];
         m.msg = rawMessage[m.mtype];
 
-        // --- ESTRAZIONE TESTO COMPLETA ---
         m.text = extractMessageText(rawMessage);
         
-        // --- ESTRAZIONE TAG/MENTIONS ---
         m.mentionedJid = extractMentions(rawMessage);
         
-        // --- GESTIONE REPLY/QUOTE MIGLIORATA ---
         m.quoted = extractQuotedMessage(conn, m);
 
-        // --- FUNZIONE REPLY MIGLIORATA ---
         m.reply = async (text, chatId, options = {}) => {
             return await conn.sendMessage(
                 chatId || m.chat, 
@@ -166,7 +138,7 @@ export default async function handler(conn, m) {
             );
         };
 
-        // --- DATABASE ---
+ 
         global.db.data = global.db.data || { users: {}, groups: {}, chats: {}, settings: {} };
         const users = global.db.data.users;
         const groups = global.db.data.groups;
@@ -190,7 +162,6 @@ export default async function handler(conn, m) {
 
         if (m.key.fromMe) return;
 
-        // --- PREFISSO E COMANDI ---
         const prefix = global.prefix instanceof RegExp ? 
             (global.prefix.test(m.text) ? m.text.match(global.prefix)[0] : '.') : 
             (global.prefix || '.');
@@ -201,21 +172,39 @@ export default async function handler(conn, m) {
         const command = args.shift().toLowerCase();
         const fullText = args.join(' '); 
         
-        // --- METADATI E RUOLI ---
         const groupMetadata = isGroup ? await conn.groupMetadata(jid).catch(() => ({})) : {};
         const participants = isGroup ? (groupMetadata.participants || []) : [];
         
-        const botJid = conn.decodeJid(conn.user.id); 
-        const senderJid = conn.decodeJid(sender);
+        const cleanId = (id) => id ? id.split('@')[0].split(':')[0] + '@' + id.split('@')[1] : '';
+        const extractNum = (id) => id ? id.split('@')[0].split(':')[0] : '';
 
-        const user = isGroup ? participants.find(u => conn.decodeJid(u.id) === senderJid) : {};
-        const bot = isGroup ? participants.find(u => conn.decodeJid(u.id) === botJid) : {};
+        const botJid = cleanId(conn.decodeJid(conn.user.id));
+        const botLid = conn.user.lid ? cleanId(conn.user.lid) : botJid; 
+        const senderJid = cleanId(sender);
 
-        // Un utente è admin se user.admin è "admin" o "superadmin" (truthy)
-        const isAdmin = !!user?.admin || isOwner;
-        const isBotAdmin = !!bot?.admin;
+        const findParticipant = (targetJid, targetLid = null) => {
+            if (!isGroup) return {};
+            const tJid = cleanId(targetJid);
+            const tNum = extractNum(tJid);
+            
+            return participants.find(p => {
+                const pJid = cleanId(conn.decodeJid(p.id));
+                const pLid = p.lid ? cleanId(conn.decodeJid(p.lid)) : null;
+                const pNum = extractNum(pJid);
+                
+                return pJid === tJid || 
+                       (pLid && pLid === targetLid) || 
+                       (targetLid && pJid === targetLid) ||
+                       pNum === tNum;
+            }) || {};
+        };
 
-        // --- ESECUZIONE PLUGIN ---
+        const user = findParticipant(senderJid);
+        const bot = findParticipant(botJid, botLid);
+
+        const isAdmin = (user && user.admin !== null && user.admin !== undefined) || isOwner;
+        const isBotAdmin = (bot && bot.admin !== null && bot.admin !== undefined) || false;
+
         for (let name in global.plugins) {
             let plugin = global.plugins[name];
             if (!plugin || plugin.disabled) continue;
@@ -244,34 +233,13 @@ export default async function handler(conn, m) {
                 }
 
                 try {
-                    // Supporta sia sintassi nuova (export default { call() }) che vecchia (var handler = async...)
                     if (typeof plugin.call === 'function') {
-                        // Sintassi nuova
                         await plugin.call(conn, m, {
-                            conn, 
-                            args, 
-                            text: fullText, 
-                            usedPrefix: prefix, 
-                            command, 
-                            isOwner, 
-                            isAdmin, 
-                            isBotAdmin, 
-                            participants, 
-                            groupMetadata
+                            conn, args, text: fullText, usedPrefix: prefix, command, isOwner, isAdmin, isBotAdmin, participants, groupMetadata
                         });
                     } else if (typeof plugin === 'function') {
-                        // Sintassi vecchia (handler è una funzione)
                         await plugin(m, {
-                            conn, 
-                            args, 
-                            text: fullText, 
-                            usedPrefix: prefix, 
-                            command, 
-                            isOwner, 
-                            isAdmin, 
-                            isBotAdmin, 
-                            participants, 
-                            groupMetadata
+                            conn, args, text: fullText, usedPrefix: prefix, command, isOwner, isAdmin, isBotAdmin, participants, groupMetadata
                         });
                     }
                     writeFileSync('./database.json', JSON.stringify(global.db.data, null, 2));
