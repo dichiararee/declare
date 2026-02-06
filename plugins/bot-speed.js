@@ -1,6 +1,9 @@
 import { performance } from 'perf_hooks'
 import os from 'os'
 import { execSync } from 'child_process'
+import { createRequire } from 'module'
+const require = createRequire(import.meta.url)
+const packageJson = require('../package.json')
 
 let npmVersion = 'N/A'
 try { npmVersion = execSync('npm -v').toString().trim() } catch {}
@@ -9,12 +12,12 @@ const nodeVersion = process.version
 const handler = async (m, { conn }) => {
     const start = performance.now()
     
-    // Info Sistema (Sincrone e istantanee)
     const uptime = formatUptime(process.uptime())
-    const { model } = os.cpus()[0]
     const totalMem = (os.totalmem() / 1073741824).toFixed(2)
     const freeMem = (os.freemem() / 1073741824).toFixed(2)
     const usedMem = (totalMem - freeMem).toFixed(2)
+    const versione = packageJson.version || '1.0.0'
+    const foto = global.immagini[Math.floor(Math.random() * global.immagini.length)]
 
     let ssdInfo = 'N/A'
     try {
@@ -24,27 +27,26 @@ const handler = async (m, { conn }) => {
     const lattenza = (performance.now() - start).toFixed(3)
 
     const response = `
-*𐙚 SPEED & SERVER INFO*
+  ╭┈  『 🚀 』 ` + "`latenza` ─ " + ` *_${lattenza}ms_*
+  ┆  『 🕒 』 ` + "`uptime` ─ " + ` *_${uptime}_*
+  ┆  『 📊 』 ` + "`ram` ─ " + ` *_${usedMem} / ${totalMem} GB_*
+  ┆  『 📂 』 ` + "`ssd` ─ " + ` *_${ssdInfo}_*
+  ┆  『 ⚙️ 』 ` + "`node` ─ " + ` *_${nodeVersion}_*
+  ╰┈➤ 『 📦 』 ` + "`versione` ─ " + ` *_${versione}_*
+  `.trim()
 
-*🚀 PRESTAZIONI*
-➤ Latenza: ${lattenza} ms
-➤ Uptime: ${uptime}
-
-*💻 SPECIFICHE SERVER*
-➤ Hostname: ${os.hostname()}
-➤ OS: ${os.platform()} (${os.arch()})
-➤ CPU: ${model}
-➤ RAM: ${usedMem}GB / ${totalMem}GB
-➤ SSD: ${ssdInfo}
-
-*⚙️ AMBIENTE*
-➤ Node.js: ${nodeVersion}
-➤ NPM: ${npmVersion}
-`.trim()
-
-    await conn.sendMessage(m.key.remoteJid, { 
-       text: response, 
-        ...global.rcanal(lattenza)
+    await conn.sendMessage(m.chat, { 
+        text: response,
+        contextInfo: {
+            ...global.newsletter().contextInfo,
+            externalAdReply: {
+                title: `zexin-bot server info`,
+                body: `v${versione} • ${lattenza}ms`,
+                renderLargerThumbnail: false,
+                thumbnailUrl: foto,
+                mediaType: 1
+            }
+        }
     }, { quoted: m })
 }
 
@@ -56,5 +58,5 @@ function formatUptime(seconds) {
     return `${d}g ${h}h ${m}m ${s}s`
 }
 
-handler.command = ['speed']
+handler.command = ['speed', 'server']
 export default handler

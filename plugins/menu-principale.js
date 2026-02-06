@@ -9,51 +9,26 @@ let handler = async (m, { conn, usedPrefix, command, args, isOwner }) => {
 
   let _uptime = process.uptime() * 1000;
   let uptime = clockString(_uptime);
+  let totalUsers = Object.keys(global.db?.users || {}).length;
 
-  // Prende utenti registrati correttamente da global.db.users
-  let totalUsers = Object.keys(global.db.users || {}).length;
-
-  const fkontak_zexin = {
-    key: { participant: '0@s.whatsapp.net', remoteJid: '0@s.whatsapp.net', fromMe: false, id: 'ZexinSystem' },
-    message: {
-      contactMessage: {
-        displayName: `ZEXIN SYSTEM 🛡️`,
-        vcard: `BEGIN:VCARD\nVERSION:3.0\nN:;Zexin;;;\nFN:Zexin\nitem1.TEL;waid=${m.sender.split('@')[0]}:${m.sender.split('@')[0]}\nEND:VCARD`
-      }
-    }
-  };
-
-  let caption = `
-╭───〔 *ZEXIN BOT* 〕───┈
-│ 🌸 *Ciao,* @${m.sender.split('@')[0]}
-│ 🚀 *Uptime:* ${uptime}
-│ 👥 *Utenti:* ${totalUsers}
-│ 🤖 *Versione:* ${botVersion}
-╰──────────────────┈
-
-Seleziona una categoria qui sotto per visualizzare i comandi disponibili.`.trim();
+  let caption = `  
+  ╭┈  『 🌸 』 ` + "`ciao` ─ " + ` *@${m.sender.split('@')[0]}*
+  ┆  『 🕒 』 ` + "`uptime` ─ " + ` *_${uptime}_*
+  ┆  『 👥 』 ` + "`utenti` ─ " + ` *_${totalUsers}_*
+  ╰┈➤ 『 📦 』 ` + "`versione` ─ " + ` *_${botVersion}_*`.trim();
 
   const buttons = [
     {
       name: "quick_reply",
-      buttonParamsJson: JSON.stringify({
-        display_text: "🛡️ ADMIN",
-        id: `${usedPrefix}funzioni`
-      })
+      buttonParamsJson: JSON.stringify({ display_text: "🛡️ ADMIN", id: `${usedPrefix}funzioni` })
     },
     {
       name: "quick_reply",
-      buttonParamsJson: JSON.stringify({
-        display_text: "🎮 GIOCHI",
-        id: `${usedPrefix}menu-giochi`
-      })
+      buttonParamsJson: JSON.stringify({ display_text: "🎮 GIOCHI", id: `${usedPrefix}menu-giochi` })
     },
     {
       name: "quick_reply",
-      buttonParamsJson: JSON.stringify({
-        display_text: "📥 DOWNLOAD",
-        id: `${usedPrefix}menu-download`
-      })
+      buttonParamsJson: JSON.stringify({ display_text: "🚀 SPEED TEST", id: `${usedPrefix}ping` })
     }
   ];
 
@@ -61,26 +36,29 @@ Seleziona una categoria qui sotto per visualizzare i comandi disponibili.`.trim(
     viewOnceMessage: {
       message: {
         interactiveMessage: {
-          header: {
-            title: "ZEXIN MAIN MENU",
-            hasVideoMessage: false
-          },
+          header: { title: "◯  𐙚  *──  m e n u  ──*", hasVideoMessage: false },
           body: { text: caption },
-          footer: { text: "Zexin Bot © 2026" },
-          nativeFlowMessage: {
-            buttons: buttons
-          },
+          footer: { text: "" },
+          nativeFlowMessage: { buttons: buttons },
           contextInfo: {
+            ...global.newsletter().contextInfo,
             mentionedJid: [m.sender],
-            isForwarded: true,
-            // Rimosso externalAdReply per pulizia estrema e visualizzazione fakecontact
+            isForwarded: true,    
+            stanzaId: 'ZexinSystem',
+            participant: '0@s.whatsapp.net',
+            quotedMessage: {
+                contactMessage: {
+                    displayName: `ZEXIN SYSTEM 🛡️`,
+                    vcard: `BEGIN:VCARD\nVERSION:3.0\nN:;Zexin;;;\nFN:Zexin\nitem1.TEL;waid=${m.sender.split('@')[0]}:${m.sender.split('@')[0]}\nEND:VCARD`
+                }
+            }
           }
         }
       }
     }
   };
 
-  return await conn.relayMessage(jid, msg, { quoted: fkontak_zexin });
+  return await conn.relayMessage(jid, msg, {});
 };
 
 function clockString(ms) {

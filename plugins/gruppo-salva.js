@@ -1,31 +1,14 @@
-import axios from 'axios'
 import fs from 'fs'
 
-const LASTFM_API_KEY = global.APIKeys?.lastfm
 const plPath = './media/playlists.json'
-
-async function fetchTrackData(query) {
-    try {
-        const q = new URLSearchParams({ method: 'track.search', track: query, api_key: LASTFM_API_KEY, format: 'json', limit: 1 })
-        const res = await axios.get(`https://ws.audioscrobbler.com/2.0/?${q}`)
-        const track = res.data.results?.trackmatches?.track?.[0]
-        if (!track) return null
-        
-        const q2 = new URLSearchParams({ method: 'track.getInfo', artist: track.artist, track: track.name, api_key: LASTFM_API_KEY, format: 'json' })
-        const res2 = await axios.get(`https://ws.audioscrobbler.com/2.0/?${q2}`)
-        const details = res2.data.track || {}
-        return {
-            title: details.name || track.name,
-            artist: details.artist?.name || track.artist,
-            image: details.album?.image?.find(i => i.size === 'extralarge')?.['#text'] || 'https://i.ibb.co/hJW7WwxV/varebot.jpg',
-            duration: parseInt(details.duration) || 0
-        }
-    } catch (e) { return null }
-}
+const songsDbPath = './media/canzoni.json'
 
 const handler = async (m, { conn, usedPrefix, command, text }) => {
     if (!fs.existsSync(plPath)) fs.writeFileSync(plPath, JSON.stringify({}))
+    if (!fs.existsSync(songsDbPath)) fs.writeFileSync(songsDbPath, JSON.stringify({}))
+    
     let pl = JSON.parse(fs.readFileSync(plPath, 'utf-8'))
+    let songsDb = JSON.parse(fs.readFileSync(songsDbPath, 'utf-8'))
 
     if (command === 'delplaylist') {
         if (!text || !pl[m.sender]?.[text]) return m.reply('『 ❌ 』 Playlist non trovata.')
@@ -45,32 +28,64 @@ const handler = async (m, { conn, usedPrefix, command, text }) => {
     }
 
     if (command === 'salva') {
-        let [song, plName] = text.split('|').map(v => v.trim())
-        if (!song) return m.reply(`『 ❌ 』 Uso: ${usedPrefix}salva Canzone | Playlist`)
-        if (!pl[m.sender] || Object.keys(pl[m.sender]).length === 0) return m.reply('『 ⚠️ 』 Crea una playlist: .cplaylist nome')
-
-        if (!plName) {
-            let buttons = Object.keys(pl[m.sender]).map(name => ({
-                buttonId: `${usedPrefix}salva ${song} | ${name}`,
-                buttonText: { displayText: name }, type: 1
-            }))
-            return conn.sendMessage(m.chat, { text: `『 🎵 』 In quale playlist salvi "${song}"?`, buttons }, { quoted: m })
+        let [songQuery, plName] = text.split('|').map(v => v.trim())
+        if (!songQuery) return m.reply(`『 ❌ 』 Uso: ${usedPrefix}salva Canzone | Playlist`)
+        
+        if (!pl[m.sender] || Object.keys(pl[m.sender]).length === 0) {
+            return m.reply('『 ⚠️ 』 Non hai playlist. Creane una con: .crea nome')
         }
 
-        await conn.sendPresenceUpdate('recording', m.chat)
-        const data = await fetchTrackData(song)
-        if (!data) return m.reply('『 ❌ 』 Canzone non trovata.')
+        // Se non specifica la playlist, mostra i bottoni
+        if (!plName) {
+            let buttons = Object.keys(pl[m.sender]).map(name => ({
+                name: 'quick_reply',
+                buttonParamsJson: JSON.stringify({
+                    display_text: name,
+                    id: `${usedPrefix}salva ${songQuery} | ${name}`
+                })
+            }))
+            
+            return conn.sendMessage(m.chat, {
+                text: `『 🎵 』 In quale playlist vuoi salvare *${songQuery}*?`,
+                cards: [{
+                    body: 'Seleziona una delle tue playlist qui sotto:',
+                    buttons: buttons
+                }]
+            }, { quoted: m })
+        }
+
+        if (!pl[m.sender][plName]) return m.reply(`『 ❌ 』 La playlist *${plName}* non esiste.`)
+
+        // Recupero dati dal database canzoni.json (popolato dal .cur)
+        let songData = songsDb[songQuery.toLowerCase()]
+        
+        // Se non è nel DB, non possiamo salvarla con i metadati corretti (timeline, cover)
+        if (!songData) {
+            return m.reply(`『 ❌ 』 Brano non trovato nel database.\nEsegui prima *.cur* su questo brano per registrarlo con i metadati.`)
+        }
+
+        // Inizializza l'array se vuoto per evitare l'errore 'some'
+        if (!Array.isArray(pl[m.sender][plName])) {
+            pl[m.sender][plName] = []
+        }
 
         // Controllo duplicati
-        const exists = pl[m.sender][plName].some(s => s.title.toLowerCase() === data.title.toLowerCase() && s.artist.toLowerCase() === data.artist.toLowerCase())
-        if (exists) return m.reply(`『 ⚠️ 』 *${data.title}* è già presente in questa playlist.`)
+        const exists = pl[m.sender][plName].some(s => s.title.toLowerCase() === songData.title.toLowerCase())
+        if (exists) return m.reply(`『 ⚠️ 』 *${songData.title}* è già presente in *${plName}*.`)
 
-        pl[m.sender][plName].push(data)
+        // Aggiunta brano
+        pl[m.sender][plName].push(songData)
         fs.writeFileSync(plPath, JSON.stringify(pl, null, 2))
         
         return conn.sendMessage(m.chat, {
-            text: `『 ✅ 』 *${data.title}* salvata in *${plName}*!`,
-            buttons: [{ buttonId: `${usedPrefix}playlist ${plName}`, buttonText: { displayText: '📂 Apri Playlist' }, type: 1 }]
+            text: `『 ✅ 』 *${songData.title}* salvata in *${plName}*!`,
+            cards: [{
+                body: `La playlist "${plName}" ora contiene ${pl[m.sender][plName].length} brani.`,
+                buttons: [{
+                    name: 'quick_reply',
+                    buttonParamsJson: JSON.stringify({ display_text: '📂 Apri Playlist', id: `${usedPrefix}playlist ${plName}` })
+                }]
+            }]
         }, { quoted: m })
     }
 }

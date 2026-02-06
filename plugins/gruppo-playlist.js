@@ -1,7 +1,11 @@
 import axios from 'axios'
 import fs from 'fs'
+import { join } from 'path'
+import '../config.js'
 
 const BROWSERLESS_KEY = global.APIKeys?.browserless
+const plPath = './media/playlists.json'
+const tmpDir = './media/tmp/playlist'
 
 const formatTime = (ms) => {
     const mins = Math.floor(ms / 60000), secs = ((ms % 60000) / 1000).toFixed(0)
@@ -14,7 +18,7 @@ const formatTotalTime = (ms) => {
 }
 
 const handler = async (m, { conn, usedPrefix, command, text }) => {
-    const plPath = './media/playlists.json'
+    if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true })
     if (!fs.existsSync(plPath)) fs.writeFileSync(plPath, JSON.stringify({}))
     let pl = JSON.parse(fs.readFileSync(plPath, 'utf-8'))
     
@@ -61,6 +65,7 @@ const handler = async (m, { conn, usedPrefix, command, text }) => {
 
     if (songs.length === 0) return m.reply('『 📁 』 Playlist vuota.')
 
+    // Presence spostata all'inizio del processo di rendering
     await conn.sendPresenceUpdate('recording', m.chat)
 
     const top10 = songs.slice(0, 10)
@@ -107,8 +112,8 @@ const handler = async (m, { conn, usedPrefix, command, text }) => {
                 <div style="width:40px; color:#b3b3b3; font-weight: 600;">${i+1}</div>
                 <img src="${s.image}" class="track-img">
                 <div class="track-info">
-                    <span class="title">${s.title}</span>
-                    <span class="artist">${s.artist}</span>
+                    <span class="title">${s.title.replace(/[<>]/g, '')}</span>
+                    <span class="artist">${s.artist.replace(/[<>]/g, '')}</span>
                 </div>
                 <div class="duration-cell">${formatTime(s.duration)}</div>
             </div>`).join('')}
@@ -119,6 +124,9 @@ const handler = async (m, { conn, usedPrefix, command, text }) => {
         const response = await axios.post(`https://chrome.browserless.io/screenshot?token=${BROWSERLESS_KEY}`, {
             html, options: { type: 'jpeg', quality: 90 }, viewport: { width: 800, height: 1050 }
         }, { responseType: 'arraybuffer', timeout: 25000 })
+
+        const fileName = join(tmpDir, `pl_${Date.now()}.jpg`)
+        fs.writeFileSync(fileName, Buffer.from(response.data))
 
         const buttons = [
             { buttonId: `${usedPrefix}delplaylist ${name}`, buttonText: { displayText: '🗑️ Elimina Playlist' }, type: 1 },
@@ -131,16 +139,18 @@ const handler = async (m, { conn, usedPrefix, command, text }) => {
                         `🔢 *Brani:* ${songs.length}\n` +
                         `🕒 *Durata Totale:* ${formatTotalTime(totalMs)}`
 
-        return conn.sendMessage(m.chat, {
-            image: Buffer.from(response.data),
+        await conn.sendMessage(m.chat, {
+            image: { url: fileName },
             caption: caption,
             buttons: buttons,
             headerType: 4
         }, { quoted: m })
+
+        setTimeout(() => { if (fs.existsSync(fileName)) fs.unlinkSync(fileName) }, 15000)
     } catch (e) {
         return m.reply('『 ❌ 』 Errore tecnico nel rendering.')
     }
 }
 
-handler.command = ['playlist', 'pcompleta', 'listabrani', 'crea', 'cplaylist']
+handler.command = ['playlist', 'listabrani', 'crea', 'cplaylist']
 export default handler
