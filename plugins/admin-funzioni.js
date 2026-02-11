@@ -4,7 +4,6 @@ let handler = async (m, { conn, usedPrefix, command, args, isOwner }) => {
     const jid = m.chat
     const botId = conn.decodeJid(conn.user.id)
     
-    // Inizializzazione Database
     global.db.data.chats[jid] = global.db.data.chats[jid] || {}
     global.db.data.settings[botId] = global.db.data.settings[botId] || {}
     
@@ -21,10 +20,9 @@ let handler = async (m, { conn, usedPrefix, command, args, isOwner }) => {
     const ownerFeatures = [
         { key: 'antiprivato', name: 'antiprivato' },
         { key: 'anticall', name: 'anticall' },
-        { key: 'ai_rispondi', name: 'rispondi' } // Sincronizzato con handler.js
+        { key: 'ai_rispondi', name: 'rispondi' } 
     ]
 
-    // Visualizzazione Pannello
     if (command === 'funzioni' || !args.length) {
         let groupPp, ownerPp
         try { groupPp = await conn.profilePictureUrl(jid, 'image') } catch { groupPp = 'https://i.ibb.co/3Fh9V6p/avatar-group-default.png' }
@@ -64,8 +62,6 @@ let handler = async (m, { conn, usedPrefix, command, args, isOwner }) => {
         }, { quoted: m })
     }
 
-    // Logica ON / OFF
-    // Se il comando è "off" o "disattiva", isEnable sarà false.
     let isEnable = !/disattiva|off|0/i.test(command)
     let type = args[0].toLowerCase()
 
@@ -81,7 +77,6 @@ let handler = async (m, { conn, usedPrefix, command, args, isOwner }) => {
         return m.reply(`🏮 ╰┈➤ Modulo \`${type}\` non trovato.`)
     }
 
-    // SALVATAGGIO FORZATO SU DISCO
     writeFileSync('./database.json', JSON.stringify(global.db.data, null, 2))
 
     let confText = `🏮 *Funzione:* \`${type}\`\n🧧 *Stato:* ${isEnable ? '🟢 ATTIVATA' : '🔴 DISATTIVATA'}`
@@ -97,7 +92,7 @@ let handler = async (m, { conn, usedPrefix, command, args, isOwner }) => {
 
 handler.help = ['funzioni', 'attiva', 'disattiva']
 handler.tags = ['admin']
-handler.command = ['funzioni', 'attiva', 'disattiva', 'on', 'off']
+handler.command = ['funzioni', 'attiva', 'disattiva']
 handler.group = true
 
 export default handler

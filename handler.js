@@ -1,273 +1,166 @@
-import { writeFileSync } from 'fs';
-import print from './lib/print.js';
+import { smsg } from './lib/simple.js'
+import chalk from 'chalk'
+import print from './lib/print.js'
 import { prima as antiPrivato } from './funzioni/owner/antiprivato.js'
 import rispondiGemini from './funzioni/owner/rispondi.js'
 import { antilink } from './funzioni/admin/antilink.js'
 
-function extractMessageText(message) {
-    if (!message) return '';
+export default async function handler(conn, chatUpdate) {
+    if (!chatUpdate) return
+    let m = chatUpdate
     
-    const mtype = Object.keys(message)[0];
-    const msg = message[mtype];
-    
-    if (message.conversation) return message.conversation;
-    if (message.extendedTextMessage?.text) return message.extendedTextMessage.text;
-    
-    if (message.buttonsResponseMessage?.selectedButtonId) {
-        return message.buttonsResponseMessage.selectedButtonId;
-    }
-    
-    if (message.listResponseMessage?.singleSelectReply?.selectedRowId) {
-        return message.listResponseMessage.singleSelectReply.selectedRowId;
-    }
-    
-    if (message.templateButtonReplyMessage?.selectedId) {
-        return message.templateButtonReplyMessage.selectedId;
-    }
-    
-    if (message.interactiveResponseMessage) {
-        const interactive = message.interactiveResponseMessage;
-        
-        if (interactive.nativeFlowResponseMessage?.paramsJson) {
-            try {
-                const params = JSON.parse(interactive.nativeFlowResponseMessage.paramsJson);
-                return params.id || params.text || params.name || "";
-            } catch (e) {
-                console.error('Errore parsing nativeFlowResponseMessage:', e);
-            }
-        }
-        
-        if (interactive.body) return interactive.body;
-    }
-    
-    if (msg?.selectedId) return msg.selectedId;
-    if (msg?.text) return msg.text;
-    if (msg?.caption) return msg.caption;
-    
-    return '';
-}
-
-function extractMentions(message) {
-    if (!message) return [];
-    
-    const mentions = [];
-    const mtype = Object.keys(message)[0];
-    const msg = message[mtype];
-    
-    if (msg?.contextInfo?.mentionedJid) {
-        mentions.push(...msg.contextInfo.mentionedJid);
-    }
-    
-    if (message.extendedTextMessage?.contextInfo?.mentionedJid) {
-        mentions.push(...message.extendedTextMessage.contextInfo.mentionedJid);
-    }
-    
-    return [...new Set(mentions)];
-}
-
-function extractQuotedMessage(conn, m) {
-    const message = m.message;
-    if (!message) return null;
-    
-    const mtype = Object.keys(message)[0];
-    const msg = message[mtype];
-    const contextInfo = msg?.contextInfo;
-    
-    if (!contextInfo?.quotedMessage) return null;
-    
-    const quotedMsg = contextInfo.quotedMessage;
-    const quotedType = Object.keys(quotedMsg)[0];
-    
-    return {
-        chat: m.key.remoteJid,
-        sender: conn.decodeJid(contextInfo.participant || m.key.remoteJid),
-        id: contextInfo.stanzaId,
-        mtype: quotedType,
-        msg: quotedMsg[quotedType],
-        text: extractMessageText(quotedMsg),
-        contextInfo: contextInfo,
-        download: async () => {
-            if (quotedMsg[quotedType]?.url) {
-                return await conn.downloadMediaMessage({
-                    key: { 
-                        remoteJid: m.key.remoteJid, 
-                        id: contextInfo.stanzaId 
-                    },
-                    message: quotedMsg
-                });
-            }
-            return null;
-        }
-    };
-}
-
-export default async function handler(conn, m) {
     try {
-        if (!m.message) return;
+        m = smsg(conn, m)
+        if (!m || !m.message) return
 
-        const jid = conn.decodeJid(m.key.remoteJid);
-        const isGroup = jid.endsWith('@g.us');
-        const sender = conn.decodeJid(m.key.participant || m.key.remoteJid);
-        const botId = conn.decodeJid(conn.user.id); 
-
-        m.chat = jid;
-        m.sender = sender;
+        // --- FORZA IL RICONOSCIMENTO DEL QUOTED ---
+        const msg = m.message
+        const type = Object.keys(msg)[0]
+        const quoted = msg[type]?.contextInfo?.quotedMessage
         
-        let rawMessage = m.message;
-        
-        if (rawMessage.messageContextInfo) {
-            if (rawMessage.listResponseMessage) {
-                rawMessage = { listResponseMessage: rawMessage.listResponseMessage };
-            } else if (rawMessage.buttonsResponseMessage) {
-                rawMessage = { buttonsResponseMessage: rawMessage.buttonsResponseMessage };
+        if (quoted && !m.quoted) {
+            const quotedId = msg[type].contextInfo.stanzaId
+            const quotedSender = msg[type].contextInfo.participant || msg[type].contextInfo.remoteJid
+            
+            m.quoted = {
+                id: quotedId,
+                sender: conn.decodeJid(quotedSender),
+                message: quoted,
+                text: quoted.conversation || quoted.extendedTextMessage?.text || quoted.imageMessage?.caption || ''
             }
         }
+
+        let txt = m.message.conversation || 
+                  m.message.extendedTextMessage?.text || 
+                  m.message.imageMessage?.caption || 
+                  m.message.videoMessage?.caption || 
+                  m.msg?.text || 
+                  m.msg?.caption || 
+                  m.text || ''
         
-        m.message = rawMessage;
-        m.mtype = Object.keys(rawMessage)[0];
-        m.msg = rawMessage[m.mtype];
+        m.text = txt.trim()
 
-        m.text = extractMessageText(rawMessage);
-        m.mentionedJid = extractMentions(rawMessage);
-        m.quoted = extractQuotedMessage(conn, m);
-
-        m.reply = async (text, chatId, options = {}) => {
-            return await conn.sendMessage(
-                chatId || m.chat, 
-                { text: text, ...global.newsletter?.() }, 
-                { quoted: m, ...options }
-            );
-        };
-
-        global.db.data = global.db.data || { users: {}, groups: {}, chats: {}, settings: {} };
-        const users = global.db.data.users;
-        const groups = global.db.data.groups;
+        const jid = m.chat
+        const isGroup = jid.endsWith('@g.us')
+        const botId = conn.decodeJid(conn.user.id)
         
-        if (!global.db.data.settings[botId]) {
-            global.db.data.settings[botId] = { ai_rispondi: true, anticall: true };
+        const sender = m.sender
+        m.senderLid = m.key.participant?.endsWith('@lid') ? m.key.participant : 'N/A'
+        const senderNum = sender.replace(/[^0-9]/g, '')
+        const isOwner = global.owner.some(o => o[0].replace(/[^0-9]/g, '') === senderNum)
+
+        let isAdmin = false
+        let isBotAdmin = false
+        let participants = []
+        let groupMetadata = {}
+
+        if (isGroup) {
+            groupMetadata = await conn.groupMetadata(jid).catch(() => ({}))
+            participants = groupMetadata.participants || []
+            
+            const userObj = participants.find(p => 
+                p.id === sender || p.id === m.senderLid || p.lid === sender || p.lid === m.senderLid
+            )
+            const botObj = participants.find(p => p.id === botId || p.id === conn.user.lid)
+
+            isAdmin = userObj?.admin !== null || isOwner
+            isBotAdmin = botObj?.admin !== null
+        } else {
+            isAdmin = isOwner
         }
-        const settings = global.db.data.settings[botId];
 
-        const isOwner = global.owner.some(o => o[0] === sender.split('@')[0]);
+        m.isAdmin = isAdmin
+        m.isBotAdmin = isBotAdmin
+        m.isOwner = isOwner
+        m.userRole = isOwner ? 'OWNER' : (isAdmin ? 'ADMIN' : 'MEMBRO')
+        m.botRole = isBotAdmin ? 'ADMIN' : 'MEMBRO'
+
+        global.db.data = global.db.data || { users: {}, groups: {}, settings: {} }
+        if (isGroup && !global.db.data.groups[jid]) global.db.data.groups[jid] = { antilink: true }
+
+        if (isGroup && global.db.data.groups[jid]?.antilink) {
+            if (await antilink(m, { conn, isAdmin, isBotAdmin })) return
+        }
+
+        // Adesso print.js vedrà m.quoted popolato
+        await print(m, conn)
+        
+        if (m.key.fromMe) return
 
         await antiPrivato.call(conn, m, { isOwner })
         
-        if (!users[sender]) users[sender] = { messages: 0, warns: {} };
-        users[sender].messages++;
-        
-        if (isGroup) {
-            if (!groups[jid]) {
-                groups[jid] = { messages: 0, rileva: false, welcome: true, antilink: true };
+        if (global.db.data.settings?.[botId]?.ai_rispondi && m.text) {
+            try {
+                await rispondiGemini(m, { conn, isOwner })
+            } catch (e) {
+                console.error(chalk.red('[Gemini Error]:'), e.message)
             }
-            groups[jid].messages++;
         }
 
-        const groupMetadata = isGroup ? await conn.groupMetadata(jid).catch(() => ({})) : {};
-        const participants = isGroup ? (groupMetadata.participants || []) : [];
-        
-        const cleanId = (id) => id ? id.split('@')[0].split(':')[0] + '@' + id.split('@')[1] : '';
-        const extractNum = (id) => id ? id.split('@')[0].split(':')[0] : '';
+        const messageText = m.text || ''
+        let usedPrefix = ''
+        const _prefix = global.prefix
 
-        const botJid = cleanId(botId);
-        const botLid = conn.user.lid ? cleanId(conn.user.lid) : botJid; 
-        const senderJid = cleanId(sender);
-
-        const findParticipant = (targetJid, targetLid = null) => {
-            if (!isGroup) return {};
-            const tJid = cleanId(targetJid);
-            const tNum = extractNum(tJid);
-            
-            return participants.find(p => {
-                const pJid = cleanId(conn.decodeJid(p.id));
-                const pLid = p.lid ? cleanId(conn.decodeJid(p.lid)) : null;
-                const pNum = extractNum(pJid);
-                
-                return pJid === tJid || 
-                       (pLid && pLid === targetLid) || 
-                       (targetLid && pJid === targetLid) ||
-                       pNum === tNum;
-            }) || {};
-        };
-
-        const user = findParticipant(senderJid);
-        const bot = findParticipant(botJid, botLid);
-
-        const isAdmin = (user && user.admin !== null && user.admin !== undefined) || isOwner;
-        const isBotAdmin = (bot && bot.admin !== null && bot.admin !== undefined) || false;
-
-        if (isGroup && groups[jid]?.antilink) {
-            const isEliminato = await antilink(m, { 
-                conn, 
-                isAdmin, 
-                isBotAdmin, 
-                users 
-            });
-            if (isEliminato) return;
+        if (_prefix instanceof RegExp) {
+            if (_prefix.test(messageText)) usedPrefix = messageText.match(_prefix)[0]
+        } else if (typeof _prefix === 'string' && messageText.startsWith(_prefix)) {
+            usedPrefix = _prefix
         }
 
-        writeFileSync('./database.json', JSON.stringify(global.db.data, null, 2));
-        await print(m, conn);
+        if (!usedPrefix) return
 
-        if (m.key.fromMe) return;
+        const args = messageText.slice(usedPrefix.length).trim().split(/ +/)
+        const command = args.shift().toLowerCase()
+        const text = args.join(' ')
 
-        if (settings.ai_rispondi) {
-            await rispondiGemini(m, { conn, isOwner });
-        }
-
-        const prefix = global.prefix instanceof RegExp ? 
-            (global.prefix.test(m.text) ? m.text.match(global.prefix)[0] : '.') : 
-            (global.prefix || '.');
-            
-
-        const args = m.text.slice(prefix.length).trim().split(/ +/);
-        const command = args.shift().toLowerCase();
-        const fullText = args.join(' '); 
-        
         for (let name in global.plugins) {
-            let plugin = global.plugins[name];
-            if (!plugin || plugin.disabled) continue;
-
+            let plugin = global.plugins[name]
+            if (!plugin || plugin.disabled) continue
+            
             const isAccept = Array.isArray(plugin.command) ? 
                 plugin.command.includes(command) : 
-                (plugin.command instanceof RegExp ? plugin.command.test(command) : plugin.command === command);
+                (plugin.command instanceof RegExp ? plugin.command.test(command) : plugin.command === command)
 
             if (isAccept) {
-                if (plugin.group && !isGroup) { 
-                    global.dfail('group', m, conn); 
-                    continue; 
-                }
-                if (plugin.admin && !isAdmin) { 
-                    global.dfail('admin', m, conn);
-                    continue; 
-                }     
-                if (plugin.botAdmin && !isBotAdmin) { 
-                    global.dfail('botAdmin', m, conn); 
-                    continue; 
-                }  
-                if (plugin.owner && !isOwner) { 
-                    global.dfail('owner', m, conn); 
-                    continue; 
-                }
+                if (plugin.owner && !isOwner) { await global.dfail('owner', m, conn); continue }
+                if (plugin.restricted && !isAdmin) { await global.dfail('restricted', m, conn); continue }
+                if (plugin.group && !isGroup) { await global.dfail('group', m, conn); continue }
+                if (plugin.private && isGroup) { await global.dfail('private', m, conn); continue }
+                if (plugin.admin && !isAdmin) { await global.dfail('admin', m, conn); continue }
+                if (plugin.botAdmin && !isBotAdmin) { await global.dfail('botAdmin', m, conn); continue }
 
                 try {
-                    if (typeof plugin.call === 'function') {
-                        await plugin.call(conn, m, {
-                            conn, args, text: fullText, usedPrefix: prefix, command, isOwner, isAdmin, isBotAdmin, participants, groupMetadata
-                        });
-                    } else if (typeof plugin === 'function') {
-                        await plugin(m, {
-                            conn, args, text: fullText, usedPrefix: prefix, command, isOwner, isAdmin, isBotAdmin, participants, groupMetadata
-                        });
-                    }
-                    writeFileSync('./database.json', JSON.stringify(global.db.data, null, 2));
+                    await plugin(m, { 
+                        conn, args, text, usedPrefix, command, 
+                        isOwner, isAdmin, isBotAdmin, 
+                        participants, groupMetadata, isGroup 
+                    })
                 } catch (e) {
-                    console.error(`Errore nel plugin ${name}:`, e);
-                    m.reply(`❌ Si è verificato un errore nell'esecuzione del comando.`);
+                    console.error(e)
                 }
-                break;
+                break
             }
         }
     } catch (e) {
-        console.error('Errore nel handler:', e);
+        console.error(chalk.red('[Handler Error]:'), e)
+    }
+}
+
+global.dfail = async (type, m, conn) => {
+    const msg = {
+        owner: '`𐔌👑꒱` _*Solo il proprietario del bot può usare questo comando!*_',
+        admin: '`𐔌🛡️ ꒱` _*Solo gli amministratori del gruppo possono usare questo comando!*_',
+        restricted: '`𐔌🚫 ꒱` _*Questo comando è limitato solo agli amministratori!*_',
+        group: '`𐔌👥 ꒱` _*Questo comando può essere usato solo in chat di gruppo!*_',
+        private: '`𐔌📩 ꒱` _*Questo comando può essere usato solo in chat privata!*_',
+        disabled: '`𐔌🔒 ꒱` _*Questo comando è stato disattivato dall\'owner!*_',
+        botAdmin: '`𐔌🤖 ꒱` _*Devo essere admin per eseguire questo comando!*_'
+    }[type]
+
+    if (msg) {
+        return conn.sendMessage(m.chat, {
+            text: msg,
+            ...global.newsletter()
+        }, { quoted: m })
     }
 }

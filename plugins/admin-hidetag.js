@@ -1,8 +1,7 @@
 const handler = async (m, { conn, text, participants }) => {
     const users = participants.map(u => u.id)
+    const content = text ? text : (m.quoted?.text || ' ')
     
-    const content = text ? text : ' '
-
     await conn.sendMessage(m.chat, { 
         text: content, 
         mentions: users 
