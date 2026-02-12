@@ -3,11 +3,12 @@ declare/
 
 # Configurazione
 config.js
+cookie.txt
 
 # Database
 database.json
-media/canzoni.json
-media/tmp/
+media/
+media/
 tmp/
 
 # Moduli e Dipendenze
