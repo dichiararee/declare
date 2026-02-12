@@ -24,19 +24,9 @@ async function apiCall(method, params) {
     } catch { return {} }
 }
 
-async function fetchCover(lastFmImages, query) {
-    let cover = lastFmImages?.find(i => i.size === 'extralarge')?.['#text']
-    if (cover && cover.trim() !== '' && !cover.includes('2a96cbd8b46e442fc41c2b86b821562f')) return cover
-    try {
-        const { data } = await axios.get(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&limit=1&media=music`)
-        if (data.results?.[0]?.artworkUrl100) return data.results[0].artworkUrl100.replace('100x100bb', '600x600bb')
-    } catch {}
-    return defCover
-}
-
 const handler = async (m, { conn, usedPrefix }) => {
     const device = getDevice(m)
-    const jid = m.sender
+    const jid = m.quoted ? m.quoted.sender : m.mentionedJid && m.mentionedJid[0] ? m.mentionedJid[0] : m.sender
     const number = jid.split('@')[0]
     const nomeUtente = m.pushName || (conn.getName ? await conn.getName(jid) : number)
     const formattedNumber = PhoneNumber('+' + number).getNumber('international')
@@ -47,7 +37,7 @@ const handler = async (m, { conn, usedPrefix }) => {
     let userMsgs = userData.messages || 0
     let warnsCount = userData.warns ? Object.keys(userData.warns).length : 0
     const allUsers = Object.entries(usersDb).filter(([id, data]) => (id.endsWith('@s.whatsapp.net') || id.endsWith('@lid')) && (data.messages > 0)).sort((a, b) => (b[1].messages || 0) - (a[1].messages || 0))
-    const rankIndex = allUsers.findIndex(([id]) => id === jid || id === m.senderLid)
+    const rankIndex = allUsers.findIndex(([id]) => id === jid)
     const globalRank = rankIndex !== -1 ? rankIndex + 1 : 'N/A'
 
     const captionProfilo = `╭┈  『 👤 』 \`${nomeUtente}\`\n┆  『 💬 』 \`statistiche\`\n┆  ╰➤  \`messaggi\` ─ *${userMsgs}*\n┆  ╰➤  \`warns\` ─ *${warnsCount}*\n┆  ╰➤  \`rank\` ─ *#${globalRank}*\n╰┈➤ 『 📦 』 \`declare system\``
@@ -57,10 +47,6 @@ const handler = async (m, { conn, usedPrefix }) => {
         pfp = await conn.profilePictureUrl(jid, 'image')
     } catch {
         pfp = 'https://i.ibb.co/Gwbg90w/idk17.jpg'
-    }
-
-    if (device === 'iOS') {
-        return await conn.sendMessage(m.chat, { image: { url: pfp }, caption: captionProfilo, mentions: [jid] }, { quoted: m })
     }
 
     await conn.sendPresenceUpdate('composing', m.chat)
@@ -108,66 +94,62 @@ const handler = async (m, { conn, usedPrefix }) => {
         const fileProfilo = join(tmpDir, `p_${Date.now()}.jpg`)
         fs.writeFileSync(fileProfilo, Buffer.from(ssProfilo.data))
 
-        let cards = []
-        cards.push({
-            image: { url: fileProfilo },
-            body: captionProfilo,
-            buttons: [
-                { name: 'quick_reply', buttonParamsJson: JSON.stringify({ display_text: '📊 Top Messaggi', id: `${usedPrefix}topmessaggi` }) }
-            ]
-        })
+        if (device === 'iOS') {
+            await conn.sendMessage(m.chat, { 
+                image: { url: fileProfilo }, 
+                caption: captionProfilo, 
+                mentions: [jid],
+                ...global.newsletter()
+            }, { quoted: global.fakecontact(m) })
+        } else {
+            let cards = []
+            cards.push({
+                image: { url: fileProfilo },
+                body: captionProfilo,
+                buttons: [
+                    { name: 'quick_reply', buttonParamsJson: JSON.stringify({ display_text: '📊 Top Messaggi', id: `${usedPrefix}topmessaggi` }) }
+                ]
+            })
 
-        let lfmDb = {}
-        if (fs.existsSync('./media/lastfm.json')) lfmDb = JSON.parse(fs.readFileSync('./media/lastfm.json', 'utf-8') || '{}')
-        const lfmUser = lfmDb[jid] || lfmDb[number]
+            let lfmDb = {}
+            if (fs.existsSync('./media/lastfm.json')) lfmDb = JSON.parse(fs.readFileSync('./media/lastfm.json', 'utf-8') || '{}')
+            const lfmUser = lfmDb[jid] || lfmDb[number]
 
-        if (lfmUser) {
-            const res = await apiCall('user.getrecenttracks', { user: lfmUser, limit: 1 })
-            const track = res.recenttracks?.track?.[0]
-            if (track && track['@attr']?.nowplaying === 'true') {
-                const cover = await fetchCover(track.image, `${track.artist['#text']} ${track.name}`)
-                const trackInfo = await apiCall('track.getInfo', { artist: track.artist['#text'], track: track.name, user: lfmUser })
-                const playcount = trackInfo?.track?.userplaycount || 0
+            if (lfmUser) {
+                const res = await apiCall('user.getrecenttracks', { user: lfmUser, limit: 1 })
+                const track = res.recenttracks?.track?.[0]
+                if (track && track['@attr']?.nowplaying === 'true') {
+                    const trackInfo = await apiCall('track.getInfo', { artist: track.artist['#text'], track: track.name, user: lfmUser })
+                    const playcount = trackInfo?.track?.userplaycount || 0
 
-                const htmlMusica = `<html><head><style>
-                    body { margin: 0; padding: 0; width: 1280px; height: 780px; display: flex; align-items: center; justify-content: center; background: #000; overflow: hidden; }
-                    .bg { position: absolute; width: 100%; height: 100%; background: url('${cover}') center/cover; filter: blur(80px) brightness(0.4); transform: scale(1.2); }
-                    .art { position: relative; width: 550px; height: 550px; border-radius: 50px; box-shadow: 0 40px 100px rgba(0,0,0,0.8); border: 1px solid rgba(255,255,255,0.2); }
-                </style></head><body>
-                    <div class="bg"></div>
-                    <img class="art" src="${cover}">
-                </body></html>`
-
-                const ssMusica = await axios.post(`https://chrome.browserless.io/screenshot?token=${BROWSERLESS_KEY}`, {
-                    html: htmlMusica,
-                    options: { type: 'jpeg', quality: 95 },
-                    viewport: { width: 1280, height: 780 }
-                }, { responseType: 'arraybuffer' })
-
-                const fileMusica = join(tmpDir, `m_${Date.now()}.jpg`)
-                fs.writeFileSync(fileMusica, Buffer.from(ssMusica.data))
-
-                cards.push({
-                    image: { url: fileMusica },
-                    body: `╭┈  『 👤 』 \`utente\` ─ ${lfmUser}\n┆  『 🎵 』 \`brano\` ─ *${track.name}*\n┆  『 👤 』 \`artista\` ─ *${track.artist['#text']}*\n┆  『 📊 』 \`ascolti\` ─ *${playcount}*\n╰┈➤ 『 📦 』 \`declare system\``,
-                    buttons: [
-                        { name: 'quick_reply', buttonParamsJson: JSON.stringify({ display_text: '📥 Scarica Audio', id: `${usedPrefix}play ${track.name} ${track.artist['#text']}` }) }
-                    ]
-                })
-                setTimeout(() => { if (fs.existsSync(fileMusica)) fs.unlinkSync(fileMusica) }, 20000)
+                    cards.push({
+                        image: { url: track.image?.find(i => i.size === 'extralarge')?.['#text'] || defCover },
+                        body: `╭┈  『 👤 』 \`lastfm\` ─ ${lfmUser}\n┆  『 🎵 』 \`brano\` ─ *${track.name}*\n┆  『 👤 』 \`artista\` ─ *${track.artist['#text']}*\n┆  『 📊 』 \`ascolti\` ─ *${playcount}*\n╰┈➤ 『 📦 』 \`declare system\``,
+                        buttons: [
+                            { name: 'quick_reply', buttonParamsJson: JSON.stringify({ display_text: '📥 Scarica Audio', id: `${usedPrefix}play ${track.name} ${track.artist['#text']}` }) }
+                        ]
+                    })
+                }
             }
+
+            await conn.sendMessage(m.chat, {
+                text: ' ',
+                cards: cards,
+                mentions: [jid],
+                ...global.newsletter()
+            }, { quoted: global.fakecontact(m) })
         }
 
-        await conn.sendMessage(m.chat, {
-            text: ' ',
-            cards: cards,
-            mentions: [jid]
-        }, { quoted: m })
-
         setTimeout(() => { if (fs.existsSync(fileProfilo)) fs.unlinkSync(fileProfilo) }, 20000)
+
     } catch (e) {
         console.error(e)
-        await conn.sendMessage(m.chat, { image: { url: pfp }, caption: captionProfilo, mentions: [jid] }, { quoted: m })
+        await conn.sendMessage(m.chat, { 
+            image: { url: pfp }, 
+            caption: captionProfilo, 
+            mentions: [jid],
+            ...global.newsletter()
+        }, { quoted: global.fakecontact(m) })
     }
 }
 

@@ -12,6 +12,7 @@ import print from "./lib/print.js";
 import { groupUpdate } from './funzioni/admin/permessi.js';
 import { eventsUpdate } from "./funzioni/admin/welcome-addio.js";
 import { checkConfig } from './lib/configInit.js';
+import { setupWatcher } from './lib/watcher.js'; 
 
 async function startBot() {
     checkConfig(); 
@@ -34,6 +35,15 @@ async function startBot() {
     };
 
     printHeader();
+
+    await checkConfig();
+    
+    const pluginsFolder = path.join(process.cwd(), 'plugins');
+
+    setupWatcher(pluginsFolder);
+    
+    console.log(chalk.cyan.bold(`[ SYSTEM ] `) + chalk.white(`Watcher avviato su: ${pluginsFolder}`));
+
 
     const conn = makeWASocket({ 
         version,
@@ -91,7 +101,6 @@ async function startBot() {
     }
 
     global.plugins = {};
-    const pluginsFolder = path.join(process.cwd(), 'plugins');
     const loadPlugins = async () => {
         const pluginFiles = fs.readdirSync(pluginsFolder).filter(file => file.endsWith('.js'));
         for (let file of pluginFiles) {

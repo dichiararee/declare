@@ -151,4 +151,4 @@ const handler = async (m, { conn, usedPrefix, command }) => {
 }
 
 handler.command = ['tolink', 'readqr', 'qr', 'scanqr']
-export default handler
+export default handler 
