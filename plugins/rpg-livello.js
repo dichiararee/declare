@@ -103,8 +103,8 @@ const handler = async (m, { conn }) => {
     })
 
     const caption = levelUp 
-        ? `╭┈  『 👤 』 \`${nomeUtente}\`\n┆  『 ✨ 』 level up\n┆  ╰➤  nuovo livello ─ *${userRpg.level}*\n┆  ╰➤  xp attuali ─ *${userRpg.xp}*\n╰┈➤ 『 🆙 』 \`congratulazioni\``
-        : `╭┈  『 👤 』 \`${nomeUtente}\`\n┆  『 📊 』 rpg stats\n┆  ╰➤  livello ─ *${userRpg.level}*\n┆  ╰➤  xp ─ *${userRpg.xp}/${userRpg.level * 50}*\n┆  ╰➤  mancanti ─ *${(userRpg.level * 50) - userRpg.xp}*\n╰┈➤ 『 🎮 』 \`rpg system\``
+        ? `╭┈  『 👤 』 \`${nomeUtente}\`\n┆  『 ✨ 』 level up\n┆  ╰➤  _*nuovo livello*_ ─ *${userRpg.level}*\n┆  ╰➤  _*xp attuali*_ ─ *${userRpg.xp}*\n╰┈➤ 『 🆙 』 \`congratulazioni\``
+        : `╭┈  『 👤 』 \`${nomeUtente}\`\n┆  『 📊 』 rpg stats\n┆  ╰➤  _*livello*_ ─ *${userRpg.level}*\n┆  ╰➤  _*xp*_ ─ *${userRpg.xp}/${userRpg.level * 50}*\n┆  ╰➤  *_mancanti_* ─ *${(userRpg.level * 50) - userRpg.xp}*\n╰┈➤ 『 🎮 』 \`rpg system\``
 
     await conn.sendMessage(m.chat, { 
         image: response.data, 
