@@ -1,11 +1,12 @@
 import axios from 'axios'
 import fs from 'fs'
 import { join } from 'path'
-import PhoneNumber from 'awesome-phonenumber'
+import { formatNum } from '../lib/numberfix.js'
 
 const BROWSERLESS_KEY = global.APIKeys?.browserless
 const LASTFM_API_KEY = global.APIKeys?.lastfm
 const tmpDir = './media/tmp/info'
+const lastfmPath = './media/lastfm.json'
 const defCover = 'https://i.ibb.co/hJW7WwxV/varebot.jpg'
 
 const getDevice = (m) => {
@@ -25,18 +26,29 @@ async function apiCall(method, params) {
 }
 
 const handler = async (m, { conn, usedPrefix }) => {
+    if (!fs.existsSync('./media')) fs.mkdirSync('./media')
+    if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true })
+    if (!fs.existsSync(lastfmPath)) fs.writeFileSync(lastfmPath, JSON.stringify({}))
+   
+
     const device = getDevice(m)
     const jid = m.quoted ? m.quoted.sender : m.mentionedJid && m.mentionedJid[0] ? m.mentionedJid[0] : m.sender
     const number = jid.split('@')[0]
     const nomeUtente = m.pushName || (conn.getName ? await conn.getName(jid) : number)
-    const formattedNumber = PhoneNumber('+' + number).getNumber('international')
+    
+    const formattedNumber = formatNum(jid) 
+
     const role = m.userRole || 'MEMBRO'
     
     const usersDb = global.db.data.users || {}
     const userData = usersDb[jid] || {}
     let userMsgs = userData.messages || 0
     let warnsCount = userData.warns ? Object.keys(userData.warns).length : 0
-    const allUsers = Object.entries(usersDb).filter(([id, data]) => (id.endsWith('@s.whatsapp.net') || id.endsWith('@lid')) && (data.messages > 0)).sort((a, b) => (b[1].messages || 0) - (a[1].messages || 0))
+    
+    const allUsers = Object.entries(usersDb)
+        .filter(([id, data]) => (id.endsWith('@s.whatsapp.net') || id.endsWith('@lid')) && (data.messages > 0))
+        .sort((a, b) => (b[1].messages || 0) - (a[1].messages || 0))
+    
     const rankIndex = allUsers.findIndex(([id]) => id === jid)
     const globalRank = rankIndex !== -1 ? rankIndex + 1 : 'N/A'
 
@@ -50,7 +62,6 @@ const handler = async (m, { conn, usedPrefix }) => {
     }
 
     await conn.sendPresenceUpdate('composing', m.chat)
-    if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true })
 
     const htmlProfilo = `<html><head><style>
         @import url('https://fonts.googleapis.com/css2?family=Figtree:wght@400;700;900&display=swap');
@@ -94,15 +105,18 @@ const handler = async (m, { conn, usedPrefix }) => {
         const fileProfilo = join(tmpDir, `p_${Date.now()}.jpg`)
         fs.writeFileSync(fileProfilo, Buffer.from(ssProfilo.data))
 
+        const quotedMsg = global.fakecontact ? global.fakecontact(m) : m
+
         if (device === 'iOS') {
             await conn.sendMessage(m.chat, { 
                 image: { url: fileProfilo }, 
                 caption: captionProfilo, 
                 mentions: [jid],
                 ...global.newsletter()
-            }, { quoted: global.fakecontact(m) })
+            }, { quoted: quotedMsg })
         } else {
             let cards = []
+            
             cards.push({
                 image: { url: fileProfilo },
                 body: captionProfilo,
@@ -111,13 +125,13 @@ const handler = async (m, { conn, usedPrefix }) => {
                 ]
             })
 
-            let lfmDb = {}
-            if (fs.existsSync('./media/lastfm.json')) lfmDb = JSON.parse(fs.readFileSync('./media/lastfm.json', 'utf-8') || '{}')
+            const lfmDb = JSON.parse(fs.readFileSync(lastfmPath, 'utf-8'))
             const lfmUser = lfmDb[jid] || lfmDb[number]
 
             if (lfmUser) {
                 const res = await apiCall('user.getrecenttracks', { user: lfmUser, limit: 1 })
                 const track = res.recenttracks?.track?.[0]
+                
                 if (track && track['@attr']?.nowplaying === 'true') {
                     const trackInfo = await apiCall('track.getInfo', { artist: track.artist['#text'], track: track.name, user: lfmUser })
                     const playcount = trackInfo?.track?.userplaycount || 0
@@ -137,7 +151,7 @@ const handler = async (m, { conn, usedPrefix }) => {
                 cards: cards,
                 mentions: [jid],
                 ...global.newsletter()
-            }, { quoted: global.fakecontact(m) })
+            }, { quoted: quotedMsg })
         }
 
         setTimeout(() => { if (fs.existsSync(fileProfilo)) fs.unlinkSync(fileProfilo) }, 20000)
@@ -149,7 +163,7 @@ const handler = async (m, { conn, usedPrefix }) => {
             caption: captionProfilo, 
             mentions: [jid],
             ...global.newsletter()
-        }, { quoted: global.fakecontact(m) })
+        }, { quoted: m })
     }
 }
 

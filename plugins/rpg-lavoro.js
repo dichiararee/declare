@@ -183,4 +183,6 @@ const handler = async (m, { conn, text, usedPrefix, command }) => {
 }
 
 handler.command = ['lavoro', 'lavora', 'licenziati']
+handler.tags = ['rpg']
+handler.help = ['lavoro', 'lavora']
 export default handler

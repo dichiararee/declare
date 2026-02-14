@@ -38,13 +38,21 @@ const handler = async (m, { conn, usedPrefix, command, text }) => {
     let inventoryDb = getDb(inventoryPath)
     let bancaDb = getDb(bancaPath)
 
-    if (!walletDb[jid]) walletDb[jid] = { money: 0, bank: 0, lastFree: 0 }
+    // --- FIX SALVATAGGIO NULL ---
+    // Inizializza l'utente se non esiste
+    if (!walletDb[jid]) walletDb[jid] = {}
+    
+    // Controlla e ripara le proprietà singole se mancano o non sono numeri
+    if (typeof walletDb[jid].money !== 'number') walletDb[jid].money = 0
+    if (typeof walletDb[jid].bank !== 'number') walletDb[jid].bank = 0
+    if (typeof walletDb[jid].lastFree !== 'number') walletDb[jid].lastFree = 0
+
     if (!inventoryDb[jid]) inventoryDb[jid] = { items: [] }
     if (!bancaDb[jid]) bancaDb[jid] = { hasCard: false }
 
     const card = bancaDb[jid]
-    const userMoney = walletDb[jid].money || 0
-    const userBank = walletDb[jid].bank || 0
+    const userMoney = walletDb[jid].money
+    const userBank = walletDb[jid].bank
 
     if (command === 'wallet' || command === 'bal') {
         await conn.sendPresenceUpdate('composing', m.chat)
@@ -136,6 +144,7 @@ const handler = async (m, { conn, usedPrefix, command, text }) => {
         if (!card.hasCard) return conn.sendMessage(m.chat, { text: '🚫 Serve la carta.' }, { quoted: m })
         let input = (text || '').trim().toLowerCase()
         let amt = 0
+        
         if (input === 'all') {
             amt = command === 'dep' ? userMoney : userBank
         } else {
@@ -205,4 +214,6 @@ const handler = async (m, { conn, usedPrefix, command, text }) => {
 }
 
 handler.command = ['wallet', 'bal', 'banca', 'shop', 'dep', 'with', 'free', 'daily']
+handler.tags = ['rpg']
+handler.help = ['wallet', 'banca', 'dep <cifra>', 'with <cifra>', 'shop buy carta']
 export default handler

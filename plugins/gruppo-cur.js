@@ -1,13 +1,13 @@
 import axios from 'axios'
 import fs from 'fs'
 import { join } from 'path'
-import '../config.js'
 
 const LASTFM_API_KEY = global.APIKeys?.lastfm
 const BROWSERLESS_KEY = global.APIKeys?.browserless
 const def = 'https://i.ibb.co/hJW7WwxV/varebot.jpg'
 const tmpDir = './media/tmp/cur'
 const songsDbPath = './media/canzoni.json'
+const lastfmDbPath = './media/lastfm.json'
 
 const formatTime = (ms) => {
     if (!ms) return '0:00'
@@ -34,20 +34,28 @@ async function fetchCover(lastFmImages, query) {
 }
 
 const handler = async (m, { conn, usedPrefix }) => {
+    // 1. CREAZIONE AUTOMATICA CARTELLE E FILE SE MANCANO
     if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true })
-    if (!fs.existsSync(songsDbPath)) fs.writeFileSync(songsDbPath, JSON.stringify({}))
     
-    const db = JSON.parse(fs.readFileSync('./media/lastfm.json', 'utf-8') || '{}')
+    // Se non esiste la cartella media, la crea (sicurezza in più)
+    if (!fs.existsSync('./media')) fs.mkdirSync('./media')
+
+    if (!fs.existsSync(songsDbPath)) fs.writeFileSync(songsDbPath, JSON.stringify({}, null, 2))
+    if (!fs.existsSync(lastfmDbPath)) fs.writeFileSync(lastfmDbPath, JSON.stringify({}, null, 2))
+    
+    // 2. LOGICA PRINCIPALE
+    const db = JSON.parse(fs.readFileSync(lastfmDbPath, 'utf-8'))
     let targetUser = m.mentionedJid?.[0] || (m.quoted ? m.quoted.sender : m.sender)
     const user = db[targetUser]
     
-    if (!user) return m.reply(`『 ⚠️ 』 Utente non registrato.`)
+    if (!user) return conn.sendMessage(m.chat, { text: `『 ⚠️ 』 Utente non registrato su LastFM.` }, { quoted: m })
 
     try {
         await conn.sendPresenceUpdate('recording', m.chat)
         const res = await apiCall('user.getrecenttracks', { user, limit: 1 })
         const track = res.recenttracks?.track?.[0]
-        if (!track) return m.reply('『 ❌ 』 Nessun brano trovato.')
+        
+        if (!track) return conn.sendMessage(m.chat, { text: '『 ❌ 』 Nessun brano trovato.' }, { quoted: m })
 
         const trackInfo = await apiCall('track.getInfo', { 
             artist: track.artist['#text'], 
@@ -59,6 +67,7 @@ const handler = async (m, { conn, usedPrefix }) => {
         const cover = await fetchCover(track.image, `${track.artist['#text']} ${track.name}`)
         const isNowPlaying = track['@attr']?.nowplaying === 'true'
 
+        // Aggiornamento database canzoni
         let songsDb = JSON.parse(fs.readFileSync(songsDbPath, 'utf-8'))
         songsDb[track.name.toLowerCase()] = {
             title: track.name,
@@ -83,7 +92,6 @@ const handler = async (m, { conn, usedPrefix }) => {
             .status { font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 3px; color: ${isNowPlaying ? '#1DB954' : '#b3b3b3'}; margin-bottom: 12px; }
             .track-name { font-size: 42px; font-weight: 800; color: white; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
             .artist-name { font-size: 24px; color: rgba(255,255,255,0.6); font-weight: 600; margin-top: 5px; }
-            
             .timeline-area { width: 100%; margin-top: 40px; }
             .bar-bg { width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; position: relative; }
             .bar-fill { width: ${progress * 100}%; height: 100%; background: #1DB954; border-radius: 3px; position: relative; }
@@ -117,23 +125,44 @@ const handler = async (m, { conn, usedPrefix }) => {
         const fileName = join(tmpDir, `cur_${Date.now()}.jpg`)
         fs.writeFileSync(fileName, Buffer.from(screenshot.data))
 
+        const buttons = [
+            {
+                name: "quick_reply",
+                buttonParamsJson: JSON.stringify({
+                    display_text: "📥 Scarica Audio",
+                    id: `${usedPrefix}play ${track.name} ${track.artist['#text']}`
+                })
+            },
+            {
+                name: "quick_reply",
+                buttonParamsJson: JSON.stringify({
+                    display_text: "🎧 Salva Brano",
+                    id: `${usedPrefix}salva ${track.name} | ${track.artist['#text']}`
+                })
+            },
+            {
+                name: "quick_reply",
+                buttonParamsJson: JSON.stringify({
+                    display_text: "📂 Playlist",
+                    id: `${usedPrefix}playlist`
+                })
+            }
+        ]
+
         await conn.sendMessage(m.chat, {
             text: `『 🎵 』 *NOW PLAYING*\n\`${track.name} - ${track.artist['#text']}\``,
             cards: [{
                 image: { url: fileName },
-                buttons: [
-                    { name: 'quick_reply', buttonParamsJson: JSON.stringify({ display_text: '📥 Scarica Audio', id: `${usedPrefix}play ${track.name} ${track.artist['#text']}` }) },
-                    { name: 'quick_reply', buttonParamsJson: JSON.stringify({ display_text: '🎧 Salva Brano', id: `${usedPrefix}salva ${track.name} | ${track.artist['#text']}` }) },
-                    { name: 'quick_reply', buttonParamsJson: JSON.stringify({ display_text: '📂 Playlist', id: `${usedPrefix}playlist` }) }
-                ]
+                buttons: buttons
             }],
             mentions: [targetUser]
         }, { quoted: m })
 
         setTimeout(() => { if (fs.existsSync(fileName)) fs.unlinkSync(fileName) }, 15000)
+
     } catch (e) { 
         console.error(e)
-        return m.reply('『 ❌ 』 Errore nel caricamento dei dati.') 
+        return conn.sendMessage(m.chat, { text: '『 ❌ 』 Errore nel caricamento dei dati.' }, { quoted: m })
     }
 }
 

@@ -48,7 +48,7 @@ let handler = async (m, { conn, usedPrefix, command, args, isOwner }) => {
             participant: '0@s.whatsapp.net',
             quotedMessage: {
                 contactMessage: {
-                    displayName: `ZEXIN SYSTEM 🛡️`,
+                    displayName: `⋆. declare 𝜗𝜚˚⋆`,
                     vcard: `BEGIN:VCARD\nVERSION:3.0\nN:;Zexin;;;\nFN:Zexin\nitem1.TEL;waid=${m.sender.split('@')[0]}:${m.sender.split('@')[0]}\nEND:VCARD`
                 }
             }

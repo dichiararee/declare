@@ -114,4 +114,5 @@ const handler = async (m, { conn }) => {
 }
 
 handler.command = ['xp', 'livello', 'lvl']
+handler.tags = ['rpg']
 export default handler
