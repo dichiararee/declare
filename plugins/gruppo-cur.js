@@ -4,7 +4,7 @@ import { join } from 'path'
 
 const LASTFM_API_KEY = global.APIKeys?.lastfm
 const BROWSERLESS_KEY = global.APIKeys?.browserless
-const def = 'https://i.ibb.co/hJW7WwxV/varebot.jpg'
+const def = 'https://i.ibb.co/6fs5B1V/triplo3.jpg'
 const tmpDir = './media/tmp/cur'
 const songsDbPath = './media/canzoni.json'
 const lastfmDbPath = './media/lastfm.json'

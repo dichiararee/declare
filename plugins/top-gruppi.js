@@ -1,6 +1,6 @@
 const handler = async (m, { conn }) => {
     const chatsDb = global.db.data.chats || {}
-    const pfpDefault = 'https://i.ibb.co/hJW7WwxV/varebot.jpg'
+    const pfpDefault = 'https://i.ibb.co/6fs5B1V/triplo3.jpg'
     
     const allGroups = Object.entries(chatsDb)
         .filter(([id, data]) => id.endsWith('@g.us'))

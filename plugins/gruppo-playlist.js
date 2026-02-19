@@ -71,7 +71,7 @@ const handler = async (m, { conn, usedPrefix, command, text }) => {
     const top10 = songs.slice(0, 10)
     const totalMs = songs.reduce((a, s) => a + (s.duration || 0), 0)
     const userN = (m.pushName || 'User').slice(0, 15)
-    const plImage = songs[songs.length - 1]?.image || 'https://i.ibb.co/hJW7WwxV/varebot.jpg'
+    const plImage = songs[songs.length - 1]?.image || 'https://i.ibb.co/6fs5B1V/triplo3.jpg'
     const pp = await conn.profilePictureUrl(m.sender, 'image').catch(() => plImage)
 
     const html = `<html><head><style>

@@ -7,7 +7,7 @@ const BROWSERLESS_KEY = global.APIKeys?.browserless
 const LASTFM_API_KEY = global.APIKeys?.lastfm
 const tmpDir = './media/tmp/info'
 const lastfmPath = './media/lastfm.json'
-const defCover = 'https://i.ibb.co/hJW7WwxV/varebot.jpg'
+const defCover = 'https://i.ibb.co/6fs5B1V/triplo3.jpg'
 
 const getDevice = (m) => {
     const id = m.key.id

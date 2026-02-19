@@ -8,7 +8,7 @@ const handler = async (m, { conn }) => {
     try {
         groupPfp = await conn.profilePictureUrl(m.chat, 'image')
     } catch {
-        groupPfp = 'https://i.ibb.co/hJW7WwxV/varebot.jpg'
+        groupPfp = 'https://i.ibb.co/6fs5B1V/triplo3.jpg'
     }
 
     const allUsers = Object.entries(usersDb)

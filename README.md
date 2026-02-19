@@ -38,7 +38,7 @@ export GYP_DEFINES="android_ndk_path=''"
 cd ~
 ```
 ```bash  
-git clone https://github.com/333/333/
+git clone https://github.com/triplotre/333/
 ```
 ```bash  
 cd 333
@@ -64,7 +64,7 @@ sudo apt update && apt upgrade -y
 sudo apt install git nodejs ffmpeg imagemagick python pip3
 ```
 ```bash  
-git clone https://github.com/333/333
+git clone https://github.com/triplotre/333
 ```
 ```bash  
 cd 333
@@ -74,14 +74,14 @@ npm i && npm start
 ```
 ## ❤️ Crediti
 
-- [@333](https://www.github.com/333) - creatore della base e dei comandi del bot
+- [@triplotre](https://www.github.com/triplotre) - creatore della base e dei comandi del bot
 - [@realvare](https://github.com/realvare) - fork di baileys (based)
 
 ## 👥 Contributori
 
 <p align="center">
-  <a href="https://github.com/333/333/graphs/contributors">
-    <img src="https://contrib.rocks/image?repo=333/333"/>
+  <a href="https://github.com/triplotre/333/graphs/contributors">
+    <img src="https://contrib.rocks/image?repo=triplotre/333"/>
   </a>
 </p>
 
