@@ -21,7 +21,7 @@ const handler = async (m, { conn, isOwner }) => {
     await conn.sendPresenceUpdate('composing', m.chat)
     
     try {
-        const gitUrl = 'https://github.com/dichiararee/declare.git'
+        const gitUrl = 'https://github.com/333/333.git'
         
         const responseStart = `
   ╭┈  『 🔄 』 ` + "`stato` ─ " + ` *_In corso..._*
@@ -49,7 +49,7 @@ const handler = async (m, { conn, isOwner }) => {
             contextInfo: {
                 ...global.newsletter().contextInfo,
                 externalAdReply: {
-                    title: `declare v${versione} • Update`,
+                    title: `333 v${versione} • Update`,
                     body: `Plugin aggiornati con successo`,
                     renderLargerThumbnail: false,
                     thumbnailUrl: foto,

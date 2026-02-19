@@ -89,7 +89,7 @@ let handler = async (m, { conn, command, args, usedPrefix }) => {
         return {
             image: { url: thumb },
             title: v.title,
-            footer: 'declare',
+            footer: '333',
             buttons: [
                 { name: 'quick_reply', buttonParamsJson: JSON.stringify({ display_text: '🎵 Audio', id: `${usedPrefix}play audio https://www.youtube.com/watch?v=${v.id}` }) },
                 { name: 'quick_reply', buttonParamsJson: JSON.stringify({ display_text: '🎥 Video', id: `${usedPrefix}play video https://www.youtube.com/watch?v=${v.id}` }) }

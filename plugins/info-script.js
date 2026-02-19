@@ -8,8 +8,8 @@ const BROWSERLESS_KEY = global.APIKeys?.browserless
 const handler = async (m, { conn, usedPrefix }) => {
     await conn.sendPresenceUpdate('recording', m.chat)
 
-    const repoPath = 'dichiararee/declare'
-    const userPath = 'dichiararee'
+    const repoPath = '333/333'
+    const userPath = '333'
     const repoUrl = `https://github.com/${repoPath}`
     const packageUrl = `${repoUrl}/releases/latest`
     const channelUrl = global.canale.link

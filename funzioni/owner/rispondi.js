@@ -39,7 +39,7 @@ const handler = async (m, { conn }) => {
 
     const systemMessage = { 
         role: 'system', 
-        content: 'Sei declare, un assistente avanzato, audace e diretto. Creato da Zexin per essere superiore. PARLA SEMPRE E SOLO IN LINGUA ITALIANA. Sii deciso, conciso e non usare mai l\'inglese.' 
+        content: 'Sei 333, un assistente avanzato, audace e diretto. Creato da Zexin per essere superiore. PARLA SEMPRE E SOLO IN LINGUA ITALIANA. Sii deciso, conciso e non usare mai l\'inglese.' 
     }
 
     const messages = [

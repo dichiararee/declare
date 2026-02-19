@@ -52,7 +52,7 @@ const handler = async (m, { conn, usedPrefix, command, text }) => {
                         interactiveMessage: {
                             header: { title: "◯  𐙚  *──  p l a y l i s t  ──*", hasVideoMessage: false },
                             body: { text: `In quale playlist vuoi salvare\n*${songTitle}*?` },
-                            footer: { text: "declare Music System" },
+                            footer: { text: "333 Music System" },
                             nativeFlowMessage: { buttons: buttons },
                             contextInfo: {
                                 ...global.newsletter().contextInfo,

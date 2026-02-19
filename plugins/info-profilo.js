@@ -52,7 +52,7 @@ const handler = async (m, { conn, usedPrefix }) => {
     const rankIndex = allUsers.findIndex(([id]) => id === jid)
     const globalRank = rankIndex !== -1 ? rankIndex + 1 : 'N/A'
 
-    const captionProfilo = `╭┈  『 👤 』 \`${nomeUtente}\`\n┆  『 💬 』 \`statistiche\`\n┆  ╰➤  \`messaggi\` ─ *${userMsgs}*\n┆  ╰➤  \`warns\` ─ *${warnsCount}*\n┆  ╰➤  \`rank\` ─ *#${globalRank}*\n╰┈➤ 『 📦 』 \`declare system\``
+    const captionProfilo = `╭┈  『 👤 』 \`${nomeUtente}\`\n┆  『 💬 』 \`statistiche\`\n┆  ╰➤  \`messaggi\` ─ *${userMsgs}*\n┆  ╰➤  \`warns\` ─ *${warnsCount}*\n┆  ╰➤  \`rank\` ─ *#${globalRank}*\n╰┈➤ 『 📦 』 \`333 system\``
 
     let pfp
     try {
@@ -138,7 +138,7 @@ const handler = async (m, { conn, usedPrefix }) => {
 
                     cards.push({
                         image: { url: track.image?.find(i => i.size === 'extralarge')?.['#text'] || defCover },
-                        body: `╭┈  『 👤 』 \`lastfm\` ─ ${lfmUser}\n┆  『 🎵 』 \`brano\` ─ *${track.name}*\n┆  『 👤 』 \`artista\` ─ *${track.artist['#text']}*\n┆  『 📊 』 \`ascolti\` ─ *${playcount}*\n╰┈➤ 『 📦 』 \`declare system\``,
+                        body: `╭┈  『 👤 』 \`lastfm\` ─ ${lfmUser}\n┆  『 🎵 』 \`brano\` ─ *${track.name}*\n┆  『 👤 』 \`artista\` ─ *${track.artist['#text']}*\n┆  『 📊 』 \`ascolti\` ─ *${playcount}*\n╰┈➤ 『 📦 』 \`333 system\``,
                         buttons: [
                             { name: 'quick_reply', buttonParamsJson: JSON.stringify({ display_text: '📥 Scarica Audio', id: `${usedPrefix}play ${track.name} ${track.artist['#text']}` }) }
                         ]
