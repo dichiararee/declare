@@ -237,15 +237,19 @@ export default async function handler(conn, chatUpdate) {
 
         for (let name in global.plugins) {
             let plugin = global.plugins[name]
-            if (!plugin || plugin.disabled) continue
+            if (!plugin) continue
             
             const isAccept = Array.isArray(plugin.command) ? 
                 plugin.command.includes(command) : 
                 (plugin.command instanceof RegExp ? plugin.command.test(command) : plugin.command === command)
 
             if (isAccept) {
+                if (plugin.disabled || plugin.restricted) {
+                    await global.dfail('disabled', m, conn, { usedPrefix, command })
+                    continue
+                }
+
                 if (plugin.owner && !isOwner) { await global.dfail('owner', m, conn); continue }
-                if (plugin.restricted && !isAdmin) { await global.dfail('restricted', m, conn); continue }
                 if (plugin.group && !isGroup) { await global.dfail('group', m, conn); continue }
                 if (plugin.private && isGroup) { await global.dfail('private', m, conn); continue }
                 if (plugin.admin && !isAdmin) { await global.dfail('admin', m, conn); continue }
@@ -268,20 +272,69 @@ export default async function handler(conn, chatUpdate) {
     }
 }
 
-global.dfail = async (type, m, conn) => {
-    const msg = {
+global.dfail = async (type, m, conn, extra = {}) => {
+    if (type === 'disabled' || type === 'restricted') {
+        const ownerNum = global.owner[0][0].replace(/[^0-9]/g, '')
+        const ownerName = global.owner[0][1]
+        const p = extra.usedPrefix || ''
+        const c = extra.command || ''
+        
+        const textMsg = `Ciao ${ownerName}, il comando ${p}${c} è disattivato. Per quale motivo?`
+        const waLink = `https://wa.me/${ownerNum}?text=${encodeURIComponent(textMsg)}`
+        const canale = 'https://shortzyk.vercel.app/zykwzp'
+        
+        const msg = {
+            viewOnceMessage: {
+                message: {
+                    interactiveMessage: {
+                        header: { title: '', hasMediaAttachment: false },
+                        body: { text: "`𐔌🔒 ꒱` _*Questo comando è stato disabilitato, contatta l'owner per info.*_" },
+                        footer: { text: "" },
+                        nativeFlowMessage: {
+                            buttons: [
+                                {
+                                    name: 'cta_url',
+                                    buttonParamsJson: JSON.stringify({
+                                        display_text: '💬 Contatta Owner',
+                                        url: waLink,
+                                        merchant_url: waLink
+                                    })
+                                },
+                                {
+                                    name: 'cta_url',
+                                    buttonParamsJson: JSON.stringify({
+                                        display_text: '💬 Controlla il Canale',
+                                        url: canale,
+                                        merchant_url: canale
+                                    })
+                                }
+                            ],
+                            messageParamsJson: ''
+                        },
+                        contextInfo: {
+                            mentionedJid: [m.sender],
+                            stanzaId: m.key.id,
+                            participant: m.sender,
+                            quotedMessage: m.message
+                        }
+                    }
+                }
+            }
+        }
+        return conn.relayMessage(m.chat, msg, {})
+    }
+
+    const msgTexts = {
         owner: '`𐔌👑꒱` _*Solo il proprietario del bot può usare questo comando!*_',
         admin: '`𐔌🛡️ ꒱` _*Solo gli amministratori del gruppo possono usare questo comando!*_',
-        restricted: '`𐔌🚫 ꒱` _*Questo comando è limitato solo agli amministratori!*_',
         group: '`𐔌👥 ꒱` _*Questo comando può essere usato solo in chat di gruppo!*_',
         private: '`𐔌📩 ꒱` _*Questo comando può essere usato solo in chat privata!*_',
-        disabled: '`𐔌🔒 ꒱` _*Questo comando è stato disattivato dall\'owner!*_',
         botAdmin: '`𐔌🤖 ꒱` _*Devo essere admin per eseguire questo comando!*_'
-    }[type]
+    }
 
-    if (msg) {
+    if (msgTexts[type]) {
         return conn.sendMessage(m.chat, {
-            text: msg,
+            text: msgTexts[type],
             ...global.newsletter()
         }, { quoted: m })
     }

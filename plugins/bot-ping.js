@@ -42,5 +42,4 @@ function formatUptime(ms) {
 }
 
 handler.command = ['ping']
-handler.restricted = true
 export default handler

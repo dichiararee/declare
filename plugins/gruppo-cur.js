@@ -34,16 +34,13 @@ async function fetchCover(lastFmImages, query) {
 }
 
 const handler = async (m, { conn, usedPrefix }) => {
-    // 1. CREAZIONE AUTOMATICA CARTELLE E FILE SE MANCANO
     if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true })
     
-    // Se non esiste la cartella media, la crea (sicurezza in più)
     if (!fs.existsSync('./media')) fs.mkdirSync('./media')
 
     if (!fs.existsSync(songsDbPath)) fs.writeFileSync(songsDbPath, JSON.stringify({}, null, 2))
     if (!fs.existsSync(lastfmDbPath)) fs.writeFileSync(lastfmDbPath, JSON.stringify({}, null, 2))
     
-    // 2. LOGICA PRINCIPALE
     const db = JSON.parse(fs.readFileSync(lastfmDbPath, 'utf-8'))
     let targetUser = m.mentionedJid?.[0] || (m.quoted ? m.quoted.sender : m.sender)
     const user = db[targetUser]
@@ -67,7 +64,6 @@ const handler = async (m, { conn, usedPrefix }) => {
         const cover = await fetchCover(track.image, `${track.artist['#text']} ${track.name}`)
         const isNowPlaying = track['@attr']?.nowplaying === 'true'
 
-        // Aggiornamento database canzoni
         let songsDb = JSON.parse(fs.readFileSync(songsDbPath, 'utf-8'))
         songsDb[track.name.toLowerCase()] = {
             title: track.name,
