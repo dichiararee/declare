@@ -19,20 +19,20 @@ async function startBot() {
     
     await import(`./config.js?update=${Date.now()}`);
 
-    const { state, saveCreds } = await useMultiFileAuthState(`./${global.authFile || 'zyk-bot'}`);
+    const { state, saveCreds } = await useMultiFileAuthState(`./${global.authFile || 'sessione'}`);
     const { version } = await fetchLatestBaileysVersion();
 
     const printHeader = () => {
         console.clear();
         console.log(chalk.magenta(`
                                                             
-  ▄▄▄▄▄     ▄▄▄▄▄     ▄▄▄▄▄    ▄▄▄▄▄▄                       
- █▀▀▀▀██▄  █▀▀▀▀██▄  █▀▀▀▀██▄  ██▀▀▀▀██              ██     
-      ▄██       ▄██       ▄██  ██    ██   ▄████▄   ███████  
-   █████     █████     █████   ███████   ██▀  ▀██    ██     
-      ▀██       ▀██       ▀██  ██    ██  ██    ██    ██     
- █▄▄▄▄██▀  █▄▄▄▄██▀  █▄▄▄▄██▀  ██▄▄▄▄██  ▀██▄▄██▀    ██▄▄▄  
-  ▀▀▀▀▀     ▀▀▀▀▀     ▀▀▀▀▀    ▀▀▀▀▀▀▀     ▀▀▀▀       ▀▀▀▀  
+███████╗██╗   ██╗██╗  ██╗██████╗  ██████╗ ████████╗
+╚══███╔╝╚██╗ ██╔╝██║ ██╔╝██╔══██╗██╔═══██╗╚══██╔══╝
+  ███╔╝  ╚████╔╝ █████╔╝ ██████╔╝██║   ██║   ██║   
+ ███╔╝    ╚██╔╝  ██╔═██╗ ██╔══██╗██║   ██║   ██║   
+███████╗   ██║   ██║  ██╗██████╔╝╚██████╔╝   ██║   
+╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═════╝  ╚═════╝    ╚═╝   
+                                                    
                                                             
                                                             `));
         console.log(chalk.cyan(`\n[ AVVIO ] 🌸 Benvenuto in zyk-bot! Avvio in corso...`));
@@ -45,8 +45,6 @@ async function startBot() {
     const pluginsFolder = path.join(process.cwd(), 'plugins');
 
     setupWatcher(pluginsFolder);
-    
-    console.log(chalk.cyan.bold(`[ SYSTEM ] `) + chalk.white(`Watcher avviato su: ${pluginsFolder}`));
 
 
     const conn = makeWASocket({ 
@@ -173,7 +171,7 @@ async function startBot() {
         }
         if (connection === 'open') {
             printHeader();
-            console.log(chalk.green.bold('\n[ SUCCESS ] ') + chalk.white('zyk-botbot è ora online 🌸\n'));
+            console.log(chalk.green.bold('\n[ SUCCESS ] ') + chalk.white('zyk-bot è ora online 🌸\n'));
         }
         if (connection === 'close') {
             const reason = lastDisconnect?.error?.output?.statusCode || lastDisconnect?.error?.code;

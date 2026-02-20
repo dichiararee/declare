@@ -75,7 +75,6 @@ export default async function handler(conn, chatUpdate) {
         const msgType = Object.keys(m.message)[0]
         const msgContent = m.message[msgType]
         
-        // === FIX LETTURA BOTTONI ===
         let txt = m.message.conversation || 
                   m.message.extendedTextMessage?.text || 
                   m.message.imageMessage?.caption || 
@@ -88,7 +87,6 @@ export default async function handler(conn, chatUpdate) {
                   msgContent?.caption || 
                   m.text || ''
         
-        // Supporto per i nuovi bottoni JSON (nativeFlow)
         if (m.message.interactiveResponseMessage?.nativeFlowResponseMessage?.paramsJson) {
             try {
                 let params = JSON.parse(m.message.interactiveResponseMessage.nativeFlowResponseMessage.paramsJson)
@@ -97,7 +95,6 @@ export default async function handler(conn, chatUpdate) {
         }
 
         m.text = txt.trim()
-        // ===========================
 
         const contextInfo = msgContent?.contextInfo
         if (contextInfo?.quotedMessage) {
@@ -141,7 +138,6 @@ export default async function handler(conn, chatUpdate) {
                 participants = []
             }
             
-            // === LOGICA ORIGINALE ROBUSTA PER TROVARE L'UTENTE ===
             const userObj = participants.find(p => {
                 const pJid = p.jid ? decodeJid(p.jid) : null
                 const pId = decodeJid(p.id)
@@ -176,10 +172,7 @@ export default async function handler(conn, chatUpdate) {
             isRealAdmin = (userObj?.admin === 'admin' || userObj?.admin === 'superadmin')
             isBotAdmin = (botObj?.admin === 'admin' || botObj?.admin === 'superadmin')
             
-            // === LA MODIFICA RICHIESTA ===
-            // Se sei Owner ma NON admin nel gruppo, isAdmin sarà false.
             isAdmin = isRealAdmin 
-            // =============================
 
             groupAdmins = participants.filter(p => p.admin === 'admin' || p.admin === 'superadmin')
         } else {
